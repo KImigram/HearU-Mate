@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFrame,
@@ -31,6 +31,8 @@ def transcript_font(
 
 class TranscriptRow(QWidget):
     """A native Qt version of the two-column transcript row used by DocAgent."""
+
+    geometry_changed = Signal()
 
     def __init__(
         self,
@@ -121,6 +123,7 @@ class TranscriptRow(QWidget):
         cursor = "  ▎" if self._partial and text else ""
         self.text_label.setText(text + cursor)
         self.updateGeometry()
+        self.geometry_changed.emit()
 
     def set_timestamp(self, timestamp: str) -> None:
         self.time_label.setText(timestamp)
@@ -157,7 +160,45 @@ class TranscriptList(QScrollArea):
         self._empty_label: QLabel | None = None
         self._top_widgets: list[QWidget] = []
         self._scroll_to_bottom_pending = False
+        self._layout_refresh_pending = False
         self._batch_depth = 0
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._schedule_layout_refresh()
+
+    def _schedule_layout_refresh(self) -> None:
+        if self._layout_refresh_pending or self._batch_depth:
+            return
+        self._layout_refresh_pending = True
+        QTimer.singleShot(0, self._apply_layout_refresh)
+
+    def _sync_content_height(self) -> None:
+        self._layout.invalidate()
+        width = max(1, self.viewport().width())
+        natural_height = (
+            self._layout.heightForWidth(width)
+            if self._layout.hasHeightForWidth()
+            else self._layout.sizeHint().height()
+        )
+        target = max(self.viewport().height(), natural_height)
+        self._content.setFixedHeight(target)
+        self._layout.activate()
+
+    def _apply_layout_refresh(self) -> None:
+        self._layout_refresh_pending = False
+        self._sync_content_height()
+        if self._scroll_to_bottom_pending:
+            # The scroll range is recalculated after the content resize. Apply
+            # the final position on the next event-loop turn so Partial growth
+            # cannot leave the viewport one layout pass behind.
+            QTimer.singleShot(0, self._finish_scroll_to_bottom)
+
+    def _finish_scroll_to_bottom(self) -> None:
+        self._sync_content_height()
+        bar = self.verticalScrollBar()
+        bar.setValue(bar.maximum())
+        self._scroll_to_bottom_pending = False
 
     def begin_batch_update(self) -> None:
         """Pause layout and painting while many transcript rows are rebuilt."""
@@ -175,8 +216,7 @@ class TranscriptList(QScrollArea):
         if self._batch_depth != 0:
             return
         self._layout.setEnabled(True)
-        self._layout.invalidate()
-        self._layout.activate()
+        self._sync_content_height()
         self._content.updateGeometry()
         self.viewport().setUpdatesEnabled(True)
         self.setUpdatesEnabled(True)
@@ -188,6 +228,7 @@ class TranscriptList(QScrollArea):
             return
         self._layout.insertWidget(len(self._top_widgets), widget)
         self._top_widgets.append(widget)
+        self._schedule_layout_refresh()
 
     def clear_rows(self) -> None:
         first_row = len(self._top_widgets)
@@ -197,6 +238,7 @@ class TranscriptList(QScrollArea):
             if widget is not None:
                 widget.deleteLater()
         self._empty_label = None
+        self._schedule_layout_refresh()
 
     def set_empty_message(self, message: str) -> None:
         self.clear_rows()
@@ -207,6 +249,7 @@ class TranscriptList(QScrollArea):
         label.setMinimumHeight(150)
         self._layout.insertWidget(len(self._top_widgets), label)
         self._empty_label = label
+        self._schedule_layout_refresh()
 
     def add_row(
         self,
@@ -229,30 +272,19 @@ class TranscriptList(QScrollArea):
             partial=partial,
             parent=self._content,
         )
+        row.geometry_changed.connect(self._schedule_layout_refresh)
         self._layout.insertWidget(self._layout.count() - 1, row)
+        self._schedule_layout_refresh()
         return row
 
     def scroll_to_bottom(self) -> None:
-        if self._scroll_to_bottom_pending:
-            return
         self._scroll_to_bottom_pending = True
-
-        def apply_scroll() -> None:
-            self._scroll_to_bottom_pending = False
-            bar = self.verticalScrollBar()
-            bar.setValue(bar.maximum())
-
-        QTimer.singleShot(
-            0,
-            apply_scroll,
-        )
+        self._schedule_layout_refresh()
 
     def is_near_bottom(self, threshold: int = 36) -> bool:
         bar = self.verticalScrollBar()
         return bar.maximum() - bar.value() <= threshold
 
     def scroll_to_top(self) -> None:
-        QTimer.singleShot(
-            0,
-            lambda: self.verticalScrollBar().setValue(0),
-        )
+        self._schedule_layout_refresh()
+        QTimer.singleShot(0, lambda: self.verticalScrollBar().setValue(0))

@@ -531,7 +531,6 @@ class MainWindow(QMainWindow):
         self._worker.request_stop()
 
     def _on_partial(self, text: str) -> None:
-        follow_tail = self.transcript_list.is_near_bottom()
         if self._partial_row is None:
             self._partial_row = self.transcript_list.add_row(
                 "识别中",
@@ -539,11 +538,9 @@ class MainWindow(QMainWindow):
                 partial=True,
             )
         self._partial_row.set_text(text)
-        if follow_tail:
-            self.transcript_list.scroll_to_bottom()
+        self.transcript_list.scroll_to_bottom()
 
     def _on_final(self, text: str, start: float, end: float) -> None:
-        follow_tail = self.transcript_list.is_near_bottom()
         timestamp = self._format_offset(start)
         if self._partial_row is None:
             self._partial_row = self.transcript_list.add_row(
@@ -553,8 +550,7 @@ class MainWindow(QMainWindow):
             )
         self._partial_row.finalize(text, timestamp)
         self._partial_row = None
-        if follow_tail:
-            self.transcript_list.scroll_to_bottom()
+        self.transcript_list.scroll_to_bottom()
 
     def _on_status(self, status: str) -> None:
         active = status.startswith("录制中")
@@ -648,8 +644,13 @@ class MainWindow(QMainWindow):
         duration = meeting.get("duration_seconds")
         if duration is not None:
             meta.append(self._format_offset(float(duration)))
-        if meeting.get("correction_status") == "success":
+        correction_status = meeting.get("correction_status")
+        if correction_status == "success":
             meta.append("AI 已校对")
+        elif correction_status == "partial":
+            meta.append("AI 部分校对，其余保留原文")
+        elif correction_status == "fallback":
+            meta.append("AI 校对失败，已保留原文")
         if meeting.get("summary"):
             meta.append("AI 已摘要")
         self.detail_meta.setText("  ·  ".join(item for item in meta if item))

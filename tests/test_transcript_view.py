@@ -45,6 +45,45 @@ class TranscriptViewTests(unittest.TestCase):
             self.app.processEvents()
         self.assertLess(row.height(), 3000)
 
+    def test_partial_height_shrinks_without_a_false_scroll_tail(self) -> None:
+        transcript = TranscriptList()
+        transcript.resize(760, 320)
+        row = transcript.add_row("识别中", "00:06", partial=True)
+        transcript.show()
+        row.set_text("持续增长的实时识别文本" * 300)
+        self.app.processEvents()
+        self.app.processEvents()
+        self.assertGreater(transcript.verticalScrollBar().maximum(), 0)
+
+        row.finalize("最终文本已经变短", "00:06")
+        self.app.processEvents()
+        self.app.processEvents()
+
+        self.assertEqual(transcript.verticalScrollBar().maximum(), 0)
+
+    def test_scroll_bottom_matches_the_last_transcript_row(self) -> None:
+        transcript = TranscriptList()
+        transcript.resize(760, 320)
+        rows = [
+            transcript.add_row(
+                "识别中",
+                f"00:{index:02d}",
+                "用于验证滚动底部的实时识别文本。" * 8,
+            )
+            for index in range(20)
+        ]
+        transcript.show()
+        transcript.scroll_to_bottom()
+        self.app.processEvents()
+        self.app.processEvents()
+
+        bar = transcript.verticalScrollBar()
+        self.assertEqual(bar.value(), bar.maximum())
+        self.assertEqual(
+            transcript._content.height(),
+            rows[-1].geometry().bottom() + 1,
+        )
+
     def test_scroll_following_stops_when_user_leaves_the_bottom(self) -> None:
         transcript = TranscriptList()
         transcript.resize(640, 240)
