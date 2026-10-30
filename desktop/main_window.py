@@ -29,7 +29,6 @@ from meeting.store import MeetingStore
 from meeting.summary_service import MeetingSummary
 
 from .env_store import has_api_key, load_project_environment
-from .history_view import HistoryRow, HistoryTranscriptView
 from .recorder_worker import (
     DeviceDiscoveryWorker,
     RecorderOptions,
@@ -326,7 +325,33 @@ class MainWindow(QMainWindow):
         divider.setFrameShape(QFrame.Shape.HLine)
         divider.setFixedHeight(1)
 
-        self.detail_transcript = HistoryTranscriptView()
+        self.summary_card = QFrame()
+        self.summary_card.setObjectName("summaryCard")
+        summary_layout = QVBoxLayout(self.summary_card)
+        summary_layout.setContentsMargins(22, 18, 22, 18)
+        summary_layout.setSpacing(8)
+        summary_header = QHBoxLayout()
+        summary_title = QLabel("AI 会议摘要")
+        summary_title.setObjectName("summaryTitle")
+        self.summary_meta = QLabel()
+        self.summary_meta.setObjectName("summaryMeta")
+        self.summary_meta.setAlignment(Qt.AlignmentFlag.AlignRight)
+        summary_header.addWidget(summary_title)
+        summary_header.addStretch(1)
+        summary_header.addWidget(self.summary_meta)
+        self.summary_text = QLabel()
+        self.summary_text.setObjectName("summaryText")
+        self.summary_text.setTextFormat(Qt.TextFormat.PlainText)
+        self.summary_text.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        self.summary_text.setWordWrap(True)
+        summary_layout.addLayout(summary_header)
+        summary_layout.addWidget(self.summary_text)
+        self.summary_card.setVisible(False)
+
+        self.detail_transcript = TranscriptList()
+        self.detail_transcript.add_top_widget(self.summary_card)
 
         layout.addLayout(header_row)
         layout.addSpacing(20)
@@ -629,71 +654,81 @@ class MainWindow(QMainWindow):
             meta.append("AI 已摘要")
         self.detail_meta.setText("  ·  ".join(item for item in meta if item))
 
-        summary = None
-        summary_meta = ""
-        if meeting.get("summary"):
-            try:
-                summary = self._summary_from_payload(meeting["summary"])
-                generated = self._format_meeting_datetime(
-                    meeting.get("summary_generated_at")
-                )
-                model = str(meeting.get("summary_model") or "").strip()
-                summary_meta = " · ".join(
-                    item for item in (model, generated) if item
-                )
-            except Exception:
-                summary = None
-
-        segments = meeting.get("segments", [])
-        corrected_starts = {
-            round(float(segment.get("start_time") or 0))
-            for segment in segments
-            if str(segment.get("corrected_text") or "").strip()
-            and str(segment.get("corrected_text") or "").strip()
-            != str(segment.get("raw_text") or "").strip()
-        }
-        markdown_rows = self._parse_markdown_rows(
-            self._read_meeting_markdown(meeting)
-        )
-        if not markdown_rows:
-            markdown_rows = [
-                (
-                    self._format_offset(
-                        float(segment.get("start_time") or 0)
-                    ),
-                    segment.get("display_speaker")
-                    or segment.get("speaker")
-                    or "Speaker Pending",
-                    str(segment.get("corrected_text") or "").strip()
-                    or str(segment.get("raw_text") or "").strip(),
-                )
+        self.detail_transcript.begin_batch_update()
+        try:
+            self._show_summary(meeting)
+            self.detail_transcript.clear_rows()
+            segments = meeting.get("segments", [])
+            corrected_starts = {
+                round(float(segment.get("start_time") or 0))
                 for segment in segments
-            ]
-        history_rows = []
-        for index, (timestamp, speaker, text) in enumerate(markdown_rows):
-            next_timestamp = (
-                markdown_rows[index + 1][0]
-                if index + 1 < len(markdown_rows)
-                else None
+                if str(segment.get("corrected_text") or "").strip()
+                and str(segment.get("corrected_text") or "").strip()
+                != str(segment.get("raw_text") or "").strip()
+            }
+            markdown_rows = self._parse_markdown_rows(
+                self._read_meeting_markdown(meeting)
             )
-            history_rows.append(
-                HistoryRow(
-                    speaker=speaker,
-                    timestamp=timestamp,
-                    text=text,
+            if not markdown_rows:
+                markdown_rows = [
+                    (
+                        self._format_offset(
+                            float(segment.get("start_time") or 0)
+                        ),
+                        segment.get("display_speaker")
+                        or segment.get("speaker")
+                        or "Speaker Pending",
+                        str(segment.get("corrected_text") or "").strip()
+                        or str(segment.get("raw_text") or "").strip(),
+                    )
+                    for segment in segments
+                ]
+            if not markdown_rows:
+                self.detail_transcript.set_empty_message(
+                    "这场会议没有可展示的转写内容。"
+                )
+            for index, (timestamp, speaker, text) in enumerate(markdown_rows):
+                next_timestamp = (
+                    markdown_rows[index + 1][0]
+                    if index + 1 < len(markdown_rows)
+                    else None
+                )
+                self.detail_transcript.add_row(
+                    speaker,
+                    timestamp,
+                    text,
                     corrected=self._row_contains_correction(
                         timestamp,
                         next_timestamp,
                         corrected_starts,
                     ),
                 )
-            )
-        self.detail_transcript.set_meeting_content(
-            history_rows,
-            summary=summary,
-            summary_meta=summary_meta,
-        )
+        finally:
+            self.detail_transcript.end_batch_update()
+        self.detail_transcript.scroll_to_top()
         self.pages.setCurrentWidget(self.detail_page)
+
+    def _show_summary(self, meeting: dict) -> None:
+        payload = meeting.get("summary")
+        if not payload:
+            self.summary_card.setVisible(False)
+            self.summary_text.clear()
+            self.summary_meta.clear()
+            return
+        try:
+            summary = self._summary_from_payload(payload)
+        except Exception:
+            self.summary_card.setVisible(False)
+            return
+        self.summary_text.setText(summary.to_plain_text())
+        generated = self._format_meeting_datetime(
+            meeting.get("summary_generated_at")
+        )
+        model = str(meeting.get("summary_model") or "").strip()
+        self.summary_meta.setText(
+            " · ".join(item for item in (model, generated) if item)
+        )
+        self.summary_card.setVisible(True)
 
     @staticmethod
     def _summary_from_payload(payload: dict) -> MeetingSummary:
@@ -742,6 +777,10 @@ class MainWindow(QMainWindow):
         self._summary_meeting_id = self._current_meeting_id
         self.summary_button.setEnabled(False)
         self.summary_button.setText("摘要生成中…")
+        if not meeting.get("summary"):
+            self.summary_text.setText("正在根据完整会议内容生成摘要…")
+            self.summary_meta.clear()
+            self.summary_card.setVisible(True)
         thread.start()
 
     def _on_summary_completed(self, meeting_id: str, payload: object) -> None:
@@ -750,6 +789,9 @@ class MainWindow(QMainWindow):
 
     def _on_summary_error(self, message: str) -> None:
         if self._current_meeting_id == self._summary_meeting_id:
+            meeting = self.store.get_meeting(self._current_meeting_id)
+            if meeting is not None:
+                self._show_summary(meeting)
             QMessageBox.critical(
                 self,
                 "AI 摘要生成失败",
