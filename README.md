@@ -14,6 +14,8 @@ SSE 或本地 HTTP 服务，也不依赖 DocAgent 的 Agent、视觉、订单与
 - JSON 和 Markdown 输出。
 - 会后可为 Speaker 标签设置姓名；原始标签保留在 JSON，Markdown 使用姓名
   重新生成。
+- 历史会议可使用同一套 OpenAI-compatible API 生成结构化 AI 摘要，摘要持久化
+  到 SQLite，并可随 Markdown 一并导出。
 - 首次启动 API Key 强提醒、项目 .env 持久化和设置页更换。
 - 从 DocAgent 独立迁移的音频、VAD、ASR、说话人、对齐、校对和存储核心。
 
@@ -24,8 +26,9 @@ Streaming 和说话人模型，再打开所选输出设备进行实时识别。G
 
 ### Windows COM 与 SoundCard
 
-SoundCard 0.4.6 在首次导入时创建模块级 COM helper。应用会在创建
-QApplication 前于长期存活的主线程预加载 SoundCard；设备枚举线程和录音
+SoundCard 0.4.6 在首次导入时创建模块级 COM helper。应用会先创建
+QApplication，让 GUI 主线程保持 STA，再于同一主线程预加载 SoundCard；
+设备枚举线程和录音
 线程仍各自调用 CoInitializeEx，并在同一线程内配对 CoUninitialize。录音线程
 会保持 COM 有效直到 recorder context、音频设备和模型服务全部释放。
 RPC_E_CHANGED_MODE 表示线程已有其他 apartment mode，此时不会重复释放。
@@ -68,6 +71,7 @@ requirements.txt 只声明运行库，不包含或下载任何模型。模型文
 - .gitignore 排除 .env、Key、数据库、会议输出和音频文件；.env.example
   只包含空变量名，不包含真实 Key。
 - 校对 API 失败时，核心会保留原始文本并将校对状态标记为 fallback。
+- AI 摘要在独立 QThread 中生成；失败不会覆盖原始纪要或已有摘要。
 - 应用不读取 DocAgent 的 agent/.env。
 
 ## 目录

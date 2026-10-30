@@ -97,6 +97,26 @@ class TranscriptViewTests(unittest.TestCase):
             ],
         )
 
+    def test_summary_subheadings_are_not_parsed_as_transcript_rows(self) -> None:
+        markdown = """# 会议纪要
+
+## AI 摘要
+
+### 核心要点
+
+- 摘要内容
+
+## 会议正文
+
+### 00:00:06 · Speaker 01
+
+真实正文
+"""
+        self.assertEqual(
+            MainWindow._parse_markdown_rows(markdown),
+            [("00:00:06", "Speaker 01", "真实正文")],
+        )
+
     def test_merged_markdown_row_inherits_ai_correction_note(self) -> None:
         self.assertTrue(
             MainWindow._row_contains_correction(
