@@ -15,6 +15,8 @@ SSE 或本地 HTTP 服务，也不依赖 DocAgent 的 Agent、视觉、订单与
 - JSON 和 Markdown 输出。
 - 会后可为 Speaker 标签设置姓名；原始标签保留在 JSON，Markdown 使用姓名
   重新生成。
+- 历史会议提供三点操作菜单，可重命名会议；删除操作需要二次确认，并级联
+  清理 SQLite 片段、摘要、说话人命名及对应 JSON/Markdown 文件。
 - 历史会议可使用同一套 OpenAI-compatible API 生成结构化 AI 摘要，摘要持久化
   到 SQLite，并可随 Markdown 一并导出。
 - 首次启动 API Key 强提醒、项目 .env 持久化和设置页更换。

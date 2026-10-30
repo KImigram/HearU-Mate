@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -30,6 +31,7 @@ from meeting.summary_service import MeetingSummary
 
 from .correction_worker import HistoricalCorrectionWorker
 from .env_store import has_api_key, load_project_environment
+from .history_item import HistoryItemWidget
 from .recorder_worker import (
     DeviceDiscoveryWorker,
     RecorderOptions,
@@ -646,12 +648,109 @@ class MainWindow(QMainWindow):
                     meeting["meeting_id"],
                 )
                 group.addChild(child)
+                row = HistoryItemWidget(
+                    str(meeting["meeting_id"]),
+                    str(meeting.get("title") or "未命名会议"),
+                )
+                row.selected.connect(
+                    lambda selected_id, tree_item=child: (
+                        self._open_history_item(selected_id, tree_item)
+                    )
+                )
+                row.rename_requested.connect(self.rename_history_meeting)
+                row.delete_requested.connect(self.delete_history_meeting)
+                self.history_tree.setItemWidget(child, 0, row)
+                if meeting["meeting_id"] == self._current_meeting_id:
+                    self.history_tree.setCurrentItem(child)
             group.setExpanded(True)
+
+    def _open_history_item(
+        self,
+        meeting_id: str,
+        item: QTreeWidgetItem,
+    ) -> None:
+        self.history_tree.setCurrentItem(item)
+        self.show_meeting(meeting_id)
 
     def _history_clicked(self, item: QTreeWidgetItem) -> None:
         meeting_id = item.data(0, Qt.ItemDataRole.UserRole)
         if meeting_id:
             self.show_meeting(str(meeting_id))
+
+    def _meeting_has_background_job(self, meeting_id: str) -> bool:
+        return bool(
+            (
+                self._summary_thread is not None
+                and self._summary_meeting_id == meeting_id
+            )
+            or (
+                self._correction_thread is not None
+                and self._correction_meeting_id == meeting_id
+            )
+        )
+
+    def rename_history_meeting(self, meeting_id: str) -> None:
+        meeting = self.store.get_meeting(meeting_id)
+        if meeting is None:
+            return
+        if self._meeting_has_background_job(meeting_id):
+            QMessageBox.information(
+                self,
+                "会议正在处理中",
+                "请等待 AI 处理完成后再重命名。",
+            )
+            return
+        title, accepted = QInputDialog.getText(
+            self,
+            "重命名会议",
+            "会议名称",
+            text=str(meeting.get("title") or ""),
+        )
+        if not accepted:
+            return
+        try:
+            self.store.rename_meeting(meeting_id, title)
+        except (KeyError, ValueError, OSError) as exc:
+            QMessageBox.warning(self, "无法重命名会议", str(exc))
+            return
+        self.refresh_history()
+        if self._current_meeting_id == meeting_id:
+            self.show_meeting(meeting_id)
+
+    def delete_history_meeting(self, meeting_id: str) -> None:
+        meeting = self.store.get_meeting(meeting_id)
+        if meeting is None:
+            return
+        if self._meeting_has_background_job(meeting_id):
+            QMessageBox.information(
+                self,
+                "会议正在处理中",
+                "请等待 AI 处理完成后再删除。",
+            )
+            return
+        title = str(meeting.get("title") or "未命名会议")
+        answer = QMessageBox.question(
+            self,
+            "确认删除会议？",
+            f"确定要永久删除“{title}”吗？\n\n"
+            "数据库记录、识别片段、AI 摘要、说话人命名、JSON 和 "
+            "Markdown 文件都会被删除。此操作无法恢复。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            deleted = self.store.delete_meeting(meeting_id)
+        except (OSError, ValueError) as exc:
+            QMessageBox.critical(self, "无法删除会议", str(exc))
+            return
+        if not deleted:
+            return
+        if self._current_meeting_id == meeting_id:
+            self._current_meeting_id = None
+            self.pages.setCurrentWidget(self.home_page)
+        self.refresh_history()
 
     def show_meeting(self, meeting_id: str) -> None:
         meeting = self.store.get_meeting(meeting_id)

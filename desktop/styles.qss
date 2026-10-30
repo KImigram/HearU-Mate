@@ -148,6 +148,41 @@ QComboBox:focus, QLineEdit:focus {
     background: #eaf3ff;
     color: #202123;
 }
+#historyItemWidget, #historyItemTitle {
+    background: transparent;
+}
+#historyItemTitle {
+    color: #303033;
+}
+#historyItemMenuButton {
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #6e6e80;
+    padding: 0;
+    font-size: 18px;
+}
+#historyItemMenuButton:hover,
+#historyItemMenuButton:pressed {
+    background: #e2e4e8;
+    color: #202123;
+}
+#historyItemMenuButton::menu-indicator {
+    image: none;
+}
+QMenu {
+    background: #ffffff;
+    border: 1px solid #d9d9df;
+    border-radius: 8px;
+    padding: 5px;
+}
+QMenu::item {
+    border-radius: 5px;
+    padding: 7px 28px 7px 12px;
+}
+QMenu::item:selected {
+    background: #eef4fb;
+}
 #recordingStatus {
     color: #a23e3e;
     background: #fff1f1;

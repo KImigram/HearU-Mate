@@ -199,6 +199,62 @@ class CoreTests(unittest.TestCase):
                 "已经完成识别的第一句话",
             )
 
+    def test_meeting_can_be_renamed_and_fully_deleted(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as folder:
+            meetings_root = Path(folder) / "meetings"
+            store = MeetingStore(meetings_root / "meeting_history.db")
+            transcript = MeetingTranscript.create(meeting_id="delete-me")
+            transcript.add_segment(TranscriptSegment(
+                start_time=0.0,
+                end_time=1.0,
+                text="需要删除的会议正文",
+                speaker="Speaker_01",
+            ))
+            transcript.finish()
+            output_dir = transcript.save(meetings_root)
+            store.save_transcript(transcript, output_dir)
+            store.save_summary(
+                transcript.meeting_id,
+                {"overview": "待删除摘要"},
+                model="test-model",
+            )
+            store.update_speaker_names(
+                transcript.meeting_id,
+                {"Speaker_01": "张三"},
+            )
+
+            store.rename_meeting(transcript.meeting_id, "产品周会")
+            # A later final/re-correction save must preserve the custom title.
+            store.save_transcript(transcript, output_dir)
+            self.assertEqual(
+                store.get_meeting(transcript.meeting_id)["title"],
+                "产品周会",
+            )
+
+            self.assertTrue(store.delete_meeting(transcript.meeting_id))
+            self.assertIsNone(store.get_meeting(transcript.meeting_id))
+            self.assertFalse(output_dir.exists())
+
+    def test_delete_refuses_export_directory_outside_meetings_root(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as folder:
+            root = Path(folder)
+            store = MeetingStore(root / "data" / "meeting_history.db")
+            transcript = MeetingTranscript.create(meeting_id="unsafe-path")
+            transcript.add_segment(TranscriptSegment(
+                start_time=0.0,
+                end_time=1.0,
+                text="安全检查",
+            ))
+            transcript.finish()
+            output_dir = transcript.save(root / "outside")
+            store.save_transcript(transcript, output_dir)
+
+            with self.assertRaises(ValueError):
+                store.delete_meeting(transcript.meeting_id)
+
+            self.assertIsNotNone(store.get_meeting(transcript.meeting_id))
+            self.assertTrue(output_dir.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

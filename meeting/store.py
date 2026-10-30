@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
+import uuid
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -233,6 +235,10 @@ class MeetingStore:
                     transcript.start_time.isoformat(timespec="seconds"),
                 ),
             )
+            stored_title = connection.execute(
+                "SELECT title FROM meetings WHERE meeting_id = ?",
+                (transcript.meeting_id,),
+            ).fetchone()["title"]
             connection.execute(
                 """
                 UPDATE meetings
@@ -244,7 +250,7 @@ class MeetingStore:
                 WHERE meeting_id = ?
                 """,
                 (
-                    title,
+                    stored_title,
                     end_time.isoformat(timespec="seconds"),
                     duration,
                     len(speakers),
@@ -543,10 +549,68 @@ class MeetingStore:
                 ) + "\n",
             )
 
-    def delete_meeting(self, meeting_id: str) -> bool:
+    def rename_meeting(self, meeting_id: str, title: str) -> None:
+        cleaned = str(title).strip()
+        if not cleaned:
+            raise ValueError("会议名称不能为空")
+        if len(cleaned) > 100:
+            raise ValueError("会议名称不能超过 100 个字符")
         with self._connection() as connection:
             cursor = connection.execute(
-                "DELETE FROM meetings WHERE meeting_id = ?",
-                (meeting_id,),
+                """
+                UPDATE meetings
+                SET title = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE meeting_id = ?
+                """,
+                (cleaned, meeting_id),
             )
-        return cursor.rowcount > 0
+            if cursor.rowcount == 0:
+                raise KeyError(f"会议不存在：{meeting_id}")
+
+    def delete_meeting(self, meeting_id: str) -> bool:
+        """Delete one meeting and its complete export directory.
+
+        The export directory is first moved to an app-owned tombstone inside
+        the meetings root. If the database transaction fails, it is restored.
+        This prevents a corrupted path in SQLite from deleting arbitrary files.
+        """
+        meeting = self.get_meeting(meeting_id)
+        if meeting is None:
+            return False
+
+        root = self.db_path.parent.resolve()
+        export_path = meeting.get("json_path") or meeting.get("markdown_path")
+        directory = (
+            Path(str(export_path)).resolve().parent
+            if export_path
+            else (root / meeting_id).resolve()
+        )
+        if directory == root or directory.parent != root:
+            raise ValueError("会议文件目录不在应用数据目录内，已拒绝删除")
+
+        staged = root / f".deleting-{uuid.uuid4().hex}"
+        directory_staged = False
+        if directory.exists():
+            directory.replace(staged)
+            directory_staged = True
+        try:
+            with self._connection() as connection:
+                cursor = connection.execute(
+                    "DELETE FROM meetings WHERE meeting_id = ?",
+                    (meeting_id,),
+                )
+                deleted = cursor.rowcount > 0
+        except Exception:
+            if directory_staged and staged.exists():
+                staged.replace(directory)
+            raise
+
+        if directory_staged and staged.exists():
+            try:
+                shutil.rmtree(staged)
+            except OSError as exc:
+                raise OSError(
+                    "数据库记录已删除，但会议文件清理失败："
+                    f"{staged}"
+                ) from exc
+        return deleted
