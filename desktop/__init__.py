@@ -1,2 +1,2 @@
-"""PySide6 desktop application for HEARU MATE / 听会儿."""
+"""PySide6 desktop application for HearU Mate / 听会儿."""
 

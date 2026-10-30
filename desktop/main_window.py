@@ -73,7 +73,7 @@ class MainWindow(QMainWindow):
         self._close_after_finish = False
         self._current_meeting_id: str | None = None
 
-        self.setWindowTitle("HEARU MATE · 听会儿")
+        self.setWindowTitle("HearU Mate · 听会儿")
         self.resize(1180, 760)
         self.setMinimumSize(900, 620)
         self._build_ui()
@@ -104,7 +104,7 @@ class MainWindow(QMainWindow):
         brand_layout = QVBoxLayout(brand_block)
         brand_layout.setContentsMargins(4, 4, 4, 10)
         brand_layout.setSpacing(1)
-        brand = QLabel("HEARU MATE")
+        brand = QLabel("HearU Mate")
         brand.setObjectName("brandLabel")
         brand_chinese = QLabel("听会儿")
         brand_chinese.setObjectName("brandChineseLabel")

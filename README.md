@@ -1,6 +1,6 @@
-# HEARU MATE（听会儿）
+# HearU Mate（听会儿）
 
-独立的 Windows 桌面会议纪要应用，英文品牌名为 HEARU MATE，中文名为
+独立的 Windows 桌面会议纪要应用，英文品牌名为 HearU Mate，中文名为
 “听会儿”。项目使用 PySide6，不包含 Web、Flask、
 SSE 或本地 HTTP 服务，也不依赖 DocAgent 的 Agent、视觉、订单与评测模块。
 

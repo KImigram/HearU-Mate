@@ -29,7 +29,7 @@ def create_app() -> QApplication:
     # SoundCard accepts RPC_E_CHANGED_MODE here and leaves that apartment
     # untouched. Device and recorder workers initialize their own MTA scopes.
     preload_soundcard()
-    app.setApplicationName("HEARU MATE · 听会儿")
+    app.setApplicationName("HearU Mate · 听会儿")
     app.setOrganizationName("MeetingRecorderDesktop")
     app_font = QFont("Microsoft YaHei")
     app_font.setPointSize(10)
