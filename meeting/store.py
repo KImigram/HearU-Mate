@@ -161,6 +161,44 @@ class MeetingStore:
                 (status, error_message, meeting_id),
             )
 
+    def save_live_segment(
+        self,
+        meeting_id: str,
+        sequence: int,
+        start_time: float,
+        end_time: float,
+        raw_text: str,
+    ) -> None:
+        """Checkpoint one finalized ASR segment during recording.
+
+        Final persistence replaces these provisional rows after speaker
+        alignment and AI correction. If the process exits early, the rows
+        remain available for an interrupted-meeting recovery view.
+        """
+        text = str(raw_text).strip()
+        if not text:
+            return
+        with self._connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO meeting_segments(
+                    meeting_id, sequence, start_time, end_time, speaker,
+                    raw_text, corrected_text, corrections_json
+                ) VALUES (?, ?, ?, ?, NULL, ?, NULL, '[]')
+                ON CONFLICT(meeting_id, sequence) DO UPDATE SET
+                    start_time = excluded.start_time,
+                    end_time = excluded.end_time,
+                    raw_text = excluded.raw_text
+                """,
+                (
+                    meeting_id,
+                    int(sequence),
+                    float(start_time),
+                    float(end_time),
+                    text,
+                ),
+            )
+
     def save_transcript(self, transcript, output_dir: str | Path) -> None:
         output_dir = Path(output_dir).resolve()
         segments = transcript.segments

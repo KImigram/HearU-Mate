@@ -3,6 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+import tempfile
+from typing import BinaryIO
 
 import numpy as np
 
@@ -50,7 +52,26 @@ class SherpaOnnxSpeakerDiarizationService(SpeakerDiarizationService):
     def __init__(self, config: SpeakerConfig):
         self.config = config
         self._diarizer = None
-        self._chunks: list[np.ndarray] = []
+        self._audio_spool: BinaryIO | None = None
+        self._sample_count = 0
+
+    def _open_audio_spool(self) -> None:
+        self._close_audio_spool()
+        # TemporaryFile is deleted by Windows when its handle closes, including
+        # normal interpreter shutdown. It avoids retaining an entire long
+        # meeting as thousands of Python/NumPy objects in memory.
+        self._audio_spool = tempfile.TemporaryFile(
+            mode="w+b",
+            prefix="meeting_recorder_speaker_",
+            suffix=".f32",
+        )
+        self._sample_count = 0
+
+    def _close_audio_spool(self) -> None:
+        if self._audio_spool is not None:
+            self._audio_spool.close()
+        self._audio_spool = None
+        self._sample_count = 0
 
     def start(self) -> None:
         segmentation = Path(self.config.segmentation_model).expanduser()
@@ -94,22 +115,42 @@ class SherpaOnnxSpeakerDiarizationService(SpeakerDiarizationService):
         self._diarizer = sherpa_onnx.OfflineSpeakerDiarization(
             diarization_config
         )
-        self._chunks.clear()
+        self._open_audio_spool()
 
     def feed_audio(self, samples, sample_rate, start_time, end_time) -> None:
         if self._diarizer is None:
             raise SpeakerServiceError("SpeakerService 尚未启动")
+        if self._audio_spool is None:
+            raise SpeakerServiceError("SpeakerService 临时音频文件未初始化")
         if sample_rate != self._diarizer.sample_rate:
             raise SpeakerServiceError(
                 f"Speaker模型要求{self._diarizer.sample_rate}Hz，收到{sample_rate}Hz"
             )
-        self._chunks.append(np.asarray(samples, dtype=np.float32).copy())
+        audio = np.ascontiguousarray(samples, dtype=np.float32)
+        self._audio_spool.write(audio.tobytes(order="C"))
+        self._sample_count += int(audio.size)
 
     def get_segments(self) -> list[SpeakerSegment]:
-        if self._diarizer is None or not self._chunks:
+        if (
+            self._diarizer is None
+            or self._audio_spool is None
+            or self._sample_count == 0
+        ):
             return []
-        samples = np.concatenate(self._chunks)
-        result = self._diarizer.process(samples)
+        self._audio_spool.flush()
+        samples = np.memmap(
+            self._audio_spool,
+            dtype=np.float32,
+            mode="r",
+            offset=0,
+            shape=(self._sample_count,),
+        )
+        try:
+            result = self._diarizer.process(samples)
+        finally:
+            mapping = getattr(samples, "_mmap", None)
+            if mapping is not None:
+                mapping.close()
         return [
             SpeakerSegment(
                 start_time=float(item.start),
@@ -124,11 +165,16 @@ class SherpaOnnxSpeakerDiarizationService(SpeakerDiarizationService):
         ]
 
     def reset(self) -> None:
-        self._chunks.clear()
+        if self._audio_spool is None:
+            self._open_audio_spool()
+            return
+        self._audio_spool.seek(0)
+        self._audio_spool.truncate(0)
+        self._sample_count = 0
 
     def stop(self) -> None:
         self._diarizer = None
-        self._chunks.clear()
+        self._close_audio_spool()
 
 
 def create_speaker_service(config: SpeakerConfig) -> SpeakerDiarizationService:

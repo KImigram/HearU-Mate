@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 import time
 import uuid
@@ -15,6 +16,9 @@ from meeting.recorder import MeetingRecorder, RecorderEvent
 from meeting.store import MeetingStore
 from meeting.transcript import MeetingTranscript, TranscriptSegment
 from meeting.windows_com import WindowsComApartment
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -53,6 +57,7 @@ class RecorderWorker(QObject):
         self._recorder: MeetingRecorder | None = None
         self._meeting_id: str | None = None
         self._active_store: MeetingStore | None = None
+        self._live_segment_sequence = 0
 
     @Slot()
     def run(self) -> None:
@@ -117,6 +122,7 @@ class RecorderWorker(QObject):
         config = self._new_config()
         meeting_id = uuid.uuid4().hex
         self._meeting_id = meeting_id
+        self._live_segment_sequence = 0
         store = self._store()
         self._active_store = store
         store.create_meeting(
@@ -142,7 +148,9 @@ class RecorderWorker(QObject):
         config = self._new_config()
         meeting_id = uuid.uuid4().hex
         self._meeting_id = meeting_id
+        self._live_segment_sequence = 0
         store = self._store()
+        self._active_store = store
         transcript = MeetingTranscript.create(
             {
                 "mode": "development_simulation",
@@ -184,6 +192,11 @@ class RecorderWorker(QObject):
                 is_final=True,
             )
             transcript.add_segment(segment)
+            self._save_live_segment(
+                sentence,
+                segment.start_time,
+                segment.end_time,
+            )
             self.final.emit(sentence, segment.start_time, segment.end_time)
             cursor = segment.end_time + 0.4
 
@@ -215,6 +228,11 @@ class RecorderWorker(QObject):
         if event.type == "partial":
             self.partial.emit(event.text)
         elif event.type == "final":
+            self._save_live_segment(
+                event.text,
+                float(event.start_time or 0.0),
+                float(event.end_time or 0.0),
+            )
             self.final.emit(
                 event.text,
                 float(event.start_time or 0.0),
@@ -240,6 +258,28 @@ class RecorderWorker(QObject):
                         database_status,
                     )
             self.status.emit(labels.get(event.text, event.text))
+
+    def _save_live_segment(
+        self,
+        text: str,
+        start_time: float,
+        end_time: float,
+    ) -> None:
+        if self._active_store is None or not self._meeting_id:
+            return
+        try:
+            self._active_store.save_live_segment(
+                self._meeting_id,
+                self._live_segment_sequence,
+                start_time,
+                end_time,
+                text,
+            )
+            self._live_segment_sequence += 1
+        except Exception:
+            # A transient checkpoint failure must not stop audio capture. The
+            # final save still has another opportunity to persist everything.
+            logger.exception("Failed to checkpoint live transcript segment")
 
     def _mark_failed(self, message: str) -> None:
         if not self._meeting_id:

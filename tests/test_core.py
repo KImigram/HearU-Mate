@@ -13,6 +13,7 @@ from meeting.config import MeetingConfig
 from meeting.recorder import MeetingRecorder
 from meeting.store import MeetingStore
 from meeting.speaker_service import SpeakerSegment
+from meeting.speaker_service import SherpaOnnxSpeakerDiarizationService
 from meeting.transcript import MeetingTranscript, TranscriptSegment
 
 
@@ -47,6 +48,53 @@ class CoreTests(unittest.TestCase):
         normalized = normalize_audio(stereo, 48000, 16000)
         self.assertEqual(normalized.dtype, np.float32)
         self.assertEqual(normalized.shape, (1600,))
+
+    def test_speaker_audio_is_spooled_to_temporary_file(self) -> None:
+        class FakeResult:
+            @staticmethod
+            def sort_by_start_time():
+                return []
+
+        class FakeDiarizer:
+            sample_rate = 16000
+
+            def __init__(self) -> None:
+                self.received = None
+
+            def process(self, samples):
+                self.received = np.array(samples, copy=True)
+                return FakeResult()
+
+        service = SherpaOnnxSpeakerDiarizationService(
+            MeetingConfig().speaker
+        )
+        diarizer = FakeDiarizer()
+        service._diarizer = diarizer
+        service._open_audio_spool()
+        spool = service._audio_spool
+
+        service.feed_audio(
+            np.arange(1600, dtype=np.float32),
+            16000,
+            0.0,
+            0.1,
+        )
+        service.feed_audio(
+            np.arange(1600, 3200, dtype=np.float32),
+            16000,
+            0.1,
+            0.2,
+        )
+        self.assertEqual(service._sample_count, 3200)
+        self.assertFalse(hasattr(service, "_chunks"))
+
+        self.assertEqual(service.get_segments(), [])
+        np.testing.assert_array_equal(
+            diarizer.received,
+            np.arange(3200, dtype=np.float32),
+        )
+        service.stop()
+        self.assertTrue(spool.closed)
 
     def test_store_preserves_raw_and_corrected_text(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as folder:
@@ -126,6 +174,30 @@ class CoreTests(unittest.TestCase):
                 output_dir / "transcript.md"
             ).read_text(encoding="utf-8")
             self.assertIn("### 00:00:00 · 张三", renamed_markdown)
+
+    def test_live_segments_survive_an_interrupted_recording(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as folder:
+            db_path = Path(folder) / "history.db"
+            store = MeetingStore(db_path)
+            transcript = MeetingTranscript.create(meeting_id="live-meeting")
+            store.create_meeting("live-meeting", transcript.start_time)
+            store.update_status("live-meeting", "recording")
+            store.save_live_segment(
+                "live-meeting",
+                0,
+                0.0,
+                2.5,
+                "已经完成识别的第一句话",
+            )
+
+            recovered = MeetingStore(db_path).get_meeting("live-meeting")
+
+            self.assertEqual(recovered["status"], "interrupted")
+            self.assertEqual(len(recovered["segments"]), 1)
+            self.assertEqual(
+                recovered["segments"][0]["raw_text"],
+                "已经完成识别的第一句话",
+            )
 
 
 if __name__ == "__main__":
