@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 from meeting.store import MeetingStore
 from meeting.summary_service import MeetingSummary
 
+from .correction_worker import HistoricalCorrectionWorker
 from .env_store import has_api_key, load_project_environment
 from .recorder_worker import (
     DeviceDiscoveryWorker,
@@ -64,6 +65,9 @@ class MainWindow(QMainWindow):
         self._summary_thread: QThread | None = None
         self._summary_worker: SummaryWorker | None = None
         self._summary_meeting_id: str | None = None
+        self._correction_thread: QThread | None = None
+        self._correction_worker: HistoricalCorrectionWorker | None = None
+        self._correction_meeting_id: str | None = None
         self._partial_row: TranscriptRow | None = None
         self._elapsed_seconds = 0
         self._close_after_finish = False
@@ -299,11 +303,21 @@ class MainWindow(QMainWindow):
         self.summary_button.setMinimumHeight(38)
         self.summary_button.setFixedWidth(148)
         self.summary_button.setVisible(False)
+        self.retry_correction_button = QPushButton("重新 AI 校对")
+        self.retry_correction_button.setObjectName("retryCorrectionButton")
+        self.retry_correction_button.setMinimumHeight(38)
+        self.retry_correction_button.setFixedWidth(148)
+        self.retry_correction_button.setVisible(False)
 
         header_row = QHBoxLayout()
         header_row.setContentsMargins(0, 0, 0, 0)
         header_row.setSpacing(14)
         header_row.addLayout(title_column, 1)
+        header_row.addWidget(
+            self.retry_correction_button,
+            0,
+            Qt.AlignmentFlag.AlignTop,
+        )
         header_row.addWidget(
             self.summary_button,
             0,
@@ -372,6 +386,9 @@ class MainWindow(QMainWindow):
             self.export_current_markdown
         )
         self.summary_button.clicked.connect(self.generate_current_summary)
+        self.retry_correction_button.clicked.connect(
+            self.retry_current_correction
+        )
 
     def show_new_meeting(self) -> None:
         if self._thread is None:
@@ -629,7 +646,10 @@ class MainWindow(QMainWindow):
         self.speaker_names_button.setVisible(bool(speaker_labels))
         self.export_markdown_button.setVisible(True)
         self.summary_button.setVisible(True)
-        self.summary_button.setEnabled(self._summary_thread is None)
+        self.summary_button.setEnabled(
+            self._summary_thread is None
+            and self._correction_thread is None
+        )
         self.summary_button.setText(
             "摘要生成中…"
             if self._summary_thread is not None
@@ -645,6 +665,28 @@ class MainWindow(QMainWindow):
         if duration is not None:
             meta.append(self._format_offset(float(duration)))
         correction_status = meeting.get("correction_status")
+        retryable_correction = (
+            correction_status in {"fallback", "partial"}
+            and bool(meeting.get("segments"))
+        )
+        self.retry_correction_button.setVisible(retryable_correction)
+        self.retry_correction_button.setEnabled(
+            self._correction_thread is None
+            and self._summary_thread is None
+        )
+        self.retry_correction_button.setText(
+            "正在重新校对…"
+            if self._correction_meeting_id == meeting_id
+            else "重新 AI 校对"
+        )
+        correction_error = str(
+            meeting.get("correction_error") or ""
+        ).strip()
+        self.retry_correction_button.setToolTip(
+            ("上次失败原因：" + correction_error)
+            if correction_error
+            else "重新使用当前设置中的 API 与模型校对原始转写"
+        )
         if correction_status == "success":
             meta.append("AI 已校对")
         elif correction_status == "partial":
@@ -738,7 +780,11 @@ class MainWindow(QMainWindow):
         return OpenAICompatibleSummaryService.parse_payload(payload)
 
     def generate_current_summary(self) -> None:
-        if self._summary_thread is not None or not self._current_meeting_id:
+        if (
+            self._summary_thread is not None
+            or self._correction_thread is not None
+            or not self._current_meeting_id
+        ):
             return
         if not has_api_key():
             QMessageBox.warning(
@@ -811,6 +857,96 @@ class MainWindow(QMainWindow):
                 if meeting and meeting.get("summary")
                 else "生成 AI 摘要"
             )
+
+    def retry_current_correction(self) -> None:
+        if (
+            self._correction_thread is not None
+            or self._summary_thread is not None
+            or not self._current_meeting_id
+        ):
+            return
+        if not has_api_key():
+            QMessageBox.warning(
+                self,
+                "需要 API Key",
+                "请先在设置中配置 API Key，再重新进行 AI 校对。",
+            )
+            return
+        meeting = self.store.get_meeting(self._current_meeting_id)
+        if meeting is None or not meeting.get("segments"):
+            QMessageBox.information(
+                self,
+                "没有可校对内容",
+                "这场会议没有可供重新校对的识别文本。",
+            )
+            return
+
+        thread = QThread(self)
+        worker = HistoricalCorrectionWorker(
+            meeting,
+            self.store.db_path,
+            base_url=self.runtime_settings.base_url,
+            model=self.runtime_settings.model,
+        )
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._on_correction_completed)
+        worker.error.connect(self._on_correction_error)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(self._correction_thread_finished)
+        thread.finished.connect(thread.deleteLater)
+        self._correction_thread = thread
+        self._correction_worker = worker
+        self._correction_meeting_id = self._current_meeting_id
+        self.retry_correction_button.setEnabled(False)
+        self.retry_correction_button.setText("正在重新校对…")
+        self.summary_button.setEnabled(False)
+        thread.start()
+
+    def _on_correction_completed(
+        self,
+        meeting_id: str,
+        status: str,
+        reason: str,
+    ) -> None:
+        if self._current_meeting_id == meeting_id:
+            self.show_meeting(meeting_id)
+        if status == "success":
+            QMessageBox.information(
+                self,
+                "AI 校对完成",
+                "会议正文已经重新校对并保存。",
+            )
+        elif status == "partial":
+            QMessageBox.warning(
+                self,
+                "AI 校对部分完成",
+                "部分批次校对失败，失败部分保留原文。"
+                + (("\n\n" + reason) if reason else ""),
+            )
+        else:
+            QMessageBox.warning(
+                self,
+                "AI 校对仍未成功",
+                "本次仍未获得有效校对结果，已继续保留原文。"
+                + (("\n\n" + reason) if reason else ""),
+            )
+
+    def _on_correction_error(self, message: str) -> None:
+        QMessageBox.critical(
+            self,
+            "重新校对失败",
+            "原始会议记录未受影响。\n\n" + message,
+        )
+
+    def _correction_thread_finished(self) -> None:
+        meeting_id = self._correction_meeting_id
+        self._correction_thread = None
+        self._correction_worker = None
+        self._correction_meeting_id = None
+        if meeting_id and self._current_meeting_id == meeting_id:
+            self.show_meeting(meeting_id)
 
     def edit_speaker_names(self) -> None:
         if not self._current_meeting_id:
@@ -1062,6 +1198,14 @@ class MainWindow(QMainWindow):
         return f"{minute:02d}:{second:02d}"
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        if self._correction_thread is not None:
+            QMessageBox.information(
+                self,
+                "AI 校对正在进行",
+                "请等待重新校对完成后再关闭窗口。",
+            )
+            event.ignore()
+            return
         if self._summary_thread is not None:
             QMessageBox.information(
                 self,

@@ -290,6 +290,10 @@ class MeetingRecorder:
                     getattr(service, "last_error_type", None)
                     or "CorrectionBatchError"
                 )
+                self.transcript.metadata["correction_error_message"] = (
+                    getattr(service, "last_error_message", None)
+                    or "校对服务返回结果未通过校验"
+                )
                 self.transcript.metadata["correction_failed_batches"] = (
                     failed_batches
                 )
@@ -312,6 +316,9 @@ class MeetingRecorder:
         except Exception as exc:
             self.transcript.metadata["correction_status"] = "fallback"
             self.transcript.metadata["correction_error"] = type(exc).__name__
+            self.transcript.metadata["correction_error_message"] = (
+                str(exc).strip()[:300]
+            )
             logger.warning(
                 "会后文本校对失败，已回退原始文本：%s: %s",
                 type(exc).__name__,

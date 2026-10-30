@@ -78,6 +78,7 @@ class CorrectionTests(unittest.TestCase):
         self.assertEqual(results[1].corrected_text, "第二段。")
         self.assertEqual(service.failed_batches, 1)
         self.assertEqual(service.total_batches, 2)
+        self.assertIn("合法JSON", service.last_error_message)
 
     def test_recorder_marks_partial_correction_status(self) -> None:
         class PartialCorrectionService:

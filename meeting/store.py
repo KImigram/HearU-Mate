@@ -53,6 +53,7 @@ class MeetingStore:
                     device_name TEXT,
                     speaker_count INTEGER,
                     correction_status TEXT,
+                    correction_error TEXT,
                     json_path TEXT,
                     markdown_path TEXT,
                     error_message TEXT,
@@ -104,6 +105,14 @@ class MeetingStore:
                 ON meeting_segments(meeting_id, sequence);
                 """
             )
+            columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(meetings)")
+            }
+            if "correction_error" not in columns:
+                connection.execute(
+                    "ALTER TABLE meetings ADD COLUMN correction_error TEXT"
+                )
             connection.execute(
                 """
                 UPDATE meetings
@@ -229,7 +238,8 @@ class MeetingStore:
                 UPDATE meetings
                 SET title = ?, status = 'completed', end_time = ?,
                     duration_seconds = ?, speaker_count = ?,
-                    correction_status = ?, json_path = ?, markdown_path = ?,
+                    correction_status = ?, correction_error = ?,
+                    json_path = ?, markdown_path = ?,
                     error_message = NULL, updated_at = CURRENT_TIMESTAMP
                 WHERE meeting_id = ?
                 """,
@@ -239,6 +249,8 @@ class MeetingStore:
                     duration,
                     len(speakers),
                     transcript.metadata.get("correction_status"),
+                    transcript.metadata.get("correction_error_message")
+                    or transcript.metadata.get("correction_error"),
                     str(output_dir / "transcript.json"),
                     str(output_dir / "transcript.md"),
                     transcript.meeting_id,

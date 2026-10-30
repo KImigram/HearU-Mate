@@ -47,6 +47,7 @@ class OpenAICompatibleCorrectionService(TranscriptCorrectionService):
         self.failed_batches = 0
         self.total_batches = 0
         self.last_error_type: str | None = None
+        self.last_error_message: str | None = None
 
     def _resolve_api_key(self) -> str:
         if self._api_key:
@@ -146,6 +147,7 @@ class OpenAICompatibleCorrectionService(TranscriptCorrectionService):
         self.failed_batches = 0
         self.total_batches = 0
         self.last_error_type = None
+        self.last_error_message = None
         results = []
         previous_context = ""
         for batch in self._batches(segments):
@@ -184,6 +186,7 @@ class OpenAICompatibleCorrectionService(TranscriptCorrectionService):
             if batch_results is None:
                 self.failed_batches += 1
                 self.last_error_type = type(last_error).__name__
+                self.last_error_message = str(last_error).strip()[:300]
                 batch_results = [
                     CorrectionResult(
                         segment_id=item["id"],
