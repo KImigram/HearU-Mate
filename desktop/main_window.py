@@ -654,54 +654,57 @@ class MainWindow(QMainWindow):
             meta.append("AI 已摘要")
         self.detail_meta.setText("  ·  ".join(item for item in meta if item))
 
-        self._show_summary(meeting)
-
-        self.detail_transcript.clear_rows()
-        segments = meeting.get("segments", [])
-        corrected_starts = {
-            round(float(segment.get("start_time") or 0))
-            for segment in segments
-            if str(segment.get("corrected_text") or "").strip()
-            and str(segment.get("corrected_text") or "").strip()
-            != str(segment.get("raw_text") or "").strip()
-        }
-        markdown_rows = self._parse_markdown_rows(
-            self._read_meeting_markdown(meeting)
-        )
-        if not markdown_rows:
-            markdown_rows = [
-                (
-                    self._format_offset(
-                        float(segment.get("start_time") or 0)
-                    ),
-                    segment.get("display_speaker")
-                    or segment.get("speaker")
-                    or "Speaker Pending",
-                    str(segment.get("corrected_text") or "").strip()
-                    or str(segment.get("raw_text") or "").strip(),
-                )
+        self.detail_transcript.begin_batch_update()
+        try:
+            self._show_summary(meeting)
+            self.detail_transcript.clear_rows()
+            segments = meeting.get("segments", [])
+            corrected_starts = {
+                round(float(segment.get("start_time") or 0))
                 for segment in segments
-            ]
-        if not markdown_rows:
-            self.detail_transcript.set_empty_message(
-                "这场会议没有可展示的转写内容。"
+                if str(segment.get("corrected_text") or "").strip()
+                and str(segment.get("corrected_text") or "").strip()
+                != str(segment.get("raw_text") or "").strip()
+            }
+            markdown_rows = self._parse_markdown_rows(
+                self._read_meeting_markdown(meeting)
             )
-        for index, (timestamp, speaker, text) in enumerate(markdown_rows):
-            next_timestamp = (
-                markdown_rows[index + 1][0]
-                if index + 1 < len(markdown_rows)
-                else None
-            )
-            self.detail_transcript.add_row(
-                speaker,
-                timestamp,
-                text,
-                corrected=self._row_contains_correction(
+            if not markdown_rows:
+                markdown_rows = [
+                    (
+                        self._format_offset(
+                            float(segment.get("start_time") or 0)
+                        ),
+                        segment.get("display_speaker")
+                        or segment.get("speaker")
+                        or "Speaker Pending",
+                        str(segment.get("corrected_text") or "").strip()
+                        or str(segment.get("raw_text") or "").strip(),
+                    )
+                    for segment in segments
+                ]
+            if not markdown_rows:
+                self.detail_transcript.set_empty_message(
+                    "这场会议没有可展示的转写内容。"
+                )
+            for index, (timestamp, speaker, text) in enumerate(markdown_rows):
+                next_timestamp = (
+                    markdown_rows[index + 1][0]
+                    if index + 1 < len(markdown_rows)
+                    else None
+                )
+                self.detail_transcript.add_row(
+                    speaker,
                     timestamp,
-                    next_timestamp,
-                    corrected_starts,
-                ),
-            )
+                    text,
+                    corrected=self._row_contains_correction(
+                        timestamp,
+                        next_timestamp,
+                        corrected_starts,
+                    ),
+                )
+        finally:
+            self.detail_transcript.end_batch_update()
         self.detail_transcript.scroll_to_top()
         self.pages.setCurrentWidget(self.detail_page)
 

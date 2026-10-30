@@ -85,6 +85,25 @@ class TranscriptViewTests(unittest.TestCase):
         self.assertIs(transcript._layout.itemAt(0).widget(), summary)
         self.assertEqual(transcript._layout.count(), 2)
 
+    def test_large_history_rebuild_is_painted_as_one_batch(self) -> None:
+        transcript = TranscriptList()
+        transcript.resize(720, 320)
+
+        transcript.begin_batch_update()
+        self.assertFalse(transcript.updatesEnabled())
+        self.assertFalse(transcript._layout.isEnabled())
+        for index in range(150):
+            transcript.add_row(
+                f"Speaker {index % 3 + 1:02d}",
+                f"{index // 60:02d}:{index % 60:02d}",
+                "这是一段用于验证长会议批量渲染的正文。" * 3,
+            )
+        transcript.end_batch_update()
+
+        self.assertTrue(transcript.updatesEnabled())
+        self.assertTrue(transcript._layout.isEnabled())
+        self.assertEqual(transcript._layout.count(), 151)
+
     def test_corrected_note_is_only_shown_for_changed_text(self) -> None:
         transcript = TranscriptList()
         unchanged = transcript.add_row("Speaker 01", "00:01", "原文")

@@ -157,6 +157,30 @@ class TranscriptList(QScrollArea):
         self._empty_label: QLabel | None = None
         self._top_widgets: list[QWidget] = []
         self._scroll_to_bottom_pending = False
+        self._batch_depth = 0
+
+    def begin_batch_update(self) -> None:
+        """Pause layout and painting while many transcript rows are rebuilt."""
+        self._batch_depth += 1
+        if self._batch_depth != 1:
+            return
+        self.setUpdatesEnabled(False)
+        self.viewport().setUpdatesEnabled(False)
+        self._layout.setEnabled(False)
+
+    def end_batch_update(self) -> None:
+        if self._batch_depth == 0:
+            return
+        self._batch_depth -= 1
+        if self._batch_depth != 0:
+            return
+        self._layout.setEnabled(True)
+        self._layout.invalidate()
+        self._layout.activate()
+        self._content.updateGeometry()
+        self.viewport().setUpdatesEnabled(True)
+        self.setUpdatesEnabled(True)
+        self.viewport().update()
 
     def add_top_widget(self, widget: QWidget) -> None:
         """Keep a detail widget above transcript rows in the same scroll area."""
