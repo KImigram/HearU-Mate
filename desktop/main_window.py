@@ -311,33 +311,41 @@ class MainWindow(QMainWindow):
 
         header_row = QHBoxLayout()
         header_row.setContentsMargins(0, 0, 0, 0)
-        header_row.setSpacing(14)
         header_row.addLayout(title_column, 1)
-        header_row.addWidget(
+
+        action_row = QHBoxLayout()
+        action_row.setContentsMargins(0, 0, 0, 0)
+        action_row.setSpacing(14)
+        action_row.addStretch(1)
+        action_row.addWidget(
             self.retry_correction_button,
             0,
-            Qt.AlignmentFlag.AlignTop,
+            Qt.AlignmentFlag.AlignVCenter,
         )
-        header_row.addWidget(
+        action_row.addWidget(
             self.summary_button,
             0,
-            Qt.AlignmentFlag.AlignTop,
+            Qt.AlignmentFlag.AlignVCenter,
         )
-        header_row.addWidget(
+        action_row.addWidget(
             self.export_markdown_button,
             0,
-            Qt.AlignmentFlag.AlignTop,
+            Qt.AlignmentFlag.AlignVCenter,
         )
-        header_row.addWidget(
+        action_row.addWidget(
             self.speaker_names_button,
             0,
-            Qt.AlignmentFlag.AlignTop,
+            Qt.AlignmentFlag.AlignVCenter,
         )
 
         divider = QFrame()
         divider.setObjectName("meetingHeaderDivider")
         divider.setFrameShape(QFrame.Shape.HLine)
         divider.setFixedHeight(1)
+        action_divider = QFrame()
+        action_divider.setObjectName("meetingHeaderDivider")
+        action_divider.setFrameShape(QFrame.Shape.HLine)
+        action_divider.setFixedHeight(1)
 
         self.summary_card = QFrame()
         self.summary_card.setObjectName("summaryCard")
@@ -371,6 +379,9 @@ class MainWindow(QMainWindow):
         layout.addSpacing(20)
         layout.addWidget(divider)
         layout.addWidget(self.detail_transcript, 1)
+        layout.addWidget(action_divider)
+        layout.addSpacing(12)
+        layout.addLayout(action_row)
         return page
 
     def _connect_signals(self) -> None:
