@@ -5,7 +5,7 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
 from desktop.main_window import MainWindow
 from desktop.transcript_view import TranscriptList
@@ -61,6 +61,29 @@ class TranscriptViewTests(unittest.TestCase):
         self.assertTrue(transcript.is_near_bottom())
         bar.setValue(max(0, bar.maximum() // 2))
         self.assertFalse(transcript.is_near_bottom())
+
+    def test_summary_and_transcript_share_one_scroll_area(self) -> None:
+        transcript = TranscriptList()
+        transcript.resize(640, 260)
+        summary = QLabel("摘要内容\n" * 30)
+        summary.setWordWrap(True)
+        transcript.add_top_widget(summary)
+        for index in range(12):
+            transcript.add_row(
+                "Speaker 01",
+                f"00:{index:02d}",
+                "会议正文内容。" * 8,
+            )
+        transcript.show()
+        self.app.processEvents()
+
+        self.assertGreater(transcript.verticalScrollBar().maximum(), 0)
+        self.assertIs(transcript._layout.itemAt(0).widget(), summary)
+
+        transcript.clear_rows()
+        self.app.processEvents()
+        self.assertIs(transcript._layout.itemAt(0).widget(), summary)
+        self.assertEqual(transcript._layout.count(), 2)
 
     def test_corrected_note_is_only_shown_for_changed_text(self) -> None:
         transcript = TranscriptList()

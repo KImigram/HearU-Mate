@@ -168,6 +168,8 @@ QComboBox:focus, QLineEdit:focus {
     background: #f7f7f8;
     border: 1px solid #e5e5e8;
     border-radius: 12px;
+    margin-top: 14px;
+    margin-bottom: 8px;
 }
 #summaryTitle {
     background: transparent;

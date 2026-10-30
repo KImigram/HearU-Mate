@@ -351,12 +351,11 @@ class MainWindow(QMainWindow):
         self.summary_card.setVisible(False)
 
         self.detail_transcript = TranscriptList()
+        self.detail_transcript.add_top_widget(self.summary_card)
 
         layout.addLayout(header_row)
         layout.addSpacing(20)
         layout.addWidget(divider)
-        layout.addSpacing(14)
-        layout.addWidget(self.summary_card)
         layout.addWidget(self.detail_transcript, 1)
         return page
 

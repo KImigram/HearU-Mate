@@ -155,11 +155,20 @@ class TranscriptList(QScrollArea):
         self._layout.addStretch(1)
         self.setWidget(self._content)
         self._empty_label: QLabel | None = None
+        self._top_widgets: list[QWidget] = []
         self._scroll_to_bottom_pending = False
 
+    def add_top_widget(self, widget: QWidget) -> None:
+        """Keep a detail widget above transcript rows in the same scroll area."""
+        if widget in self._top_widgets:
+            return
+        self._layout.insertWidget(len(self._top_widgets), widget)
+        self._top_widgets.append(widget)
+
     def clear_rows(self) -> None:
-        while self._layout.count() > 1:
-            item = self._layout.takeAt(0)
+        first_row = len(self._top_widgets)
+        while self._layout.count() > first_row + 1:
+            item = self._layout.takeAt(first_row)
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
@@ -172,7 +181,7 @@ class TranscriptList(QScrollArea):
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setWordWrap(True)
         label.setMinimumHeight(150)
-        self._layout.insertWidget(0, label)
+        self._layout.insertWidget(len(self._top_widgets), label)
         self._empty_label = label
 
     def add_row(
