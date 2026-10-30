@@ -73,7 +73,7 @@ class MainWindow(QMainWindow):
         self._close_after_finish = False
         self._current_meeting_id: str | None = None
 
-        self.setWindowTitle("Meeting Recorder Desktop")
+        self.setWindowTitle("HEARU MATE · 听会儿")
         self.resize(1180, 760)
         self.setMinimumSize(900, 620)
         self._build_ui()
@@ -99,8 +99,17 @@ class MainWindow(QMainWindow):
         side_layout.setContentsMargins(16, 18, 16, 16)
         side_layout.setSpacing(12)
 
-        brand = QLabel("Meeting Recorder")
+        brand_block = QWidget()
+        brand_block.setObjectName("brandBlock")
+        brand_layout = QVBoxLayout(brand_block)
+        brand_layout.setContentsMargins(4, 4, 4, 10)
+        brand_layout.setSpacing(1)
+        brand = QLabel("HEARU MATE")
         brand.setObjectName("brandLabel")
+        brand_chinese = QLabel("听会儿")
+        brand_chinese.setObjectName("brandChineseLabel")
+        brand_layout.addWidget(brand)
+        brand_layout.addWidget(brand_chinese)
         self.new_meeting_button = QPushButton("＋  新建会议")
         self.new_meeting_button.setObjectName("primaryButton")
         history_label = QLabel("历史会议")
@@ -113,7 +122,7 @@ class MainWindow(QMainWindow):
         self.settings_button.setObjectName("settingsButton")
         self.settings_button.setMinimumHeight(40)
 
-        side_layout.addWidget(brand)
+        side_layout.addWidget(brand_block)
         side_layout.addWidget(self.new_meeting_button)
         side_layout.addSpacing(8)
         side_layout.addWidget(history_label)
