@@ -86,6 +86,17 @@ class MeetingStore:
                         ON DELETE CASCADE
                 );
 
+                CREATE TABLE IF NOT EXISTS meeting_summaries (
+                    meeting_id TEXT PRIMARY KEY,
+                    summary_json TEXT NOT NULL,
+                    model TEXT,
+                    generated_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (meeting_id)
+                        REFERENCES meetings(meeting_id)
+                        ON DELETE CASCADE
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_meetings_start_time
                 ON meetings(start_time DESC);
 
@@ -298,11 +309,29 @@ class MeetingStore:
                 """,
                 (meeting_id,),
             ).fetchall()
+            summary = connection.execute(
+                """
+                SELECT summary_json, model, generated_at
+                FROM meeting_summaries
+                WHERE meeting_id = ?
+                """,
+                (meeting_id,),
+            ).fetchone()
         payload = dict(meeting)
         payload["speaker_names"] = {
             row["speaker_label"]: row["display_name"]
             for row in speaker_names
         }
+        payload["summary"] = (
+            json.loads(summary["summary_json"])
+            if summary is not None else None
+        )
+        payload["summary_model"] = (
+            summary["model"] if summary is not None else None
+        )
+        payload["summary_generated_at"] = (
+            summary["generated_at"] if summary is not None else None
+        )
         payload["segments"] = [
             {
                 **dict(row),
@@ -318,6 +347,35 @@ class MeetingStore:
                 if label else None
             )
         return payload
+
+    def save_summary(
+        self,
+        meeting_id: str,
+        summary: dict,
+        *,
+        model: str | None = None,
+        generated_at: datetime | None = None,
+    ) -> None:
+        if self.get_meeting(meeting_id) is None:
+            raise KeyError(f"会议不存在：{meeting_id}")
+        timestamp = (generated_at or datetime.now()).isoformat(
+            timespec="seconds"
+        )
+        payload = json.dumps(summary, ensure_ascii=False)
+        with self._connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO meeting_summaries(
+                    meeting_id, summary_json, model, generated_at
+                ) VALUES (?, ?, ?, ?)
+                ON CONFLICT(meeting_id) DO UPDATE SET
+                    summary_json = excluded.summary_json,
+                    model = excluded.model,
+                    generated_at = excluded.generated_at,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (meeting_id, payload, model, timestamp),
+            )
 
     def update_speaker_names(
         self,
