@@ -283,8 +283,32 @@ class MeetingRecorder:
                         "corrected": result.corrected_text,
                         "reason": result.reason,
                     }]
-            self.transcript.metadata["correction_status"] = "success"
-            logger.info("会后文本校对完成")
+            failed_batches = int(getattr(service, "failed_batches", 0))
+            total_batches = int(getattr(service, "total_batches", 0))
+            if failed_batches:
+                self.transcript.metadata["correction_error"] = (
+                    getattr(service, "last_error_type", None)
+                    or "CorrectionBatchError"
+                )
+                self.transcript.metadata["correction_failed_batches"] = (
+                    failed_batches
+                )
+                self.transcript.metadata["correction_total_batches"] = (
+                    total_batches
+                )
+                self.transcript.metadata["correction_status"] = (
+                    "fallback"
+                    if failed_batches == total_batches
+                    else "partial"
+                )
+                logger.warning(
+                    "AI校对有 %d/%d 个批次失败，失败部分保留原文",
+                    failed_batches,
+                    total_batches,
+                )
+            else:
+                self.transcript.metadata["correction_status"] = "success"
+                logger.info("会后文本校对完成")
         except Exception as exc:
             self.transcript.metadata["correction_status"] = "fallback"
             self.transcript.metadata["correction_error"] = type(exc).__name__

@@ -44,6 +44,9 @@ class OpenAICompatibleCorrectionService(TranscriptCorrectionService):
     def __init__(self, config: CorrectionConfig, api_key: str | None = None):
         self.config = config
         self._api_key = api_key
+        self.failed_batches = 0
+        self.total_batches = 0
+        self.last_error_type: str | None = None
 
     def _resolve_api_key(self) -> str:
         if self._api_key:
@@ -140,33 +143,55 @@ class OpenAICompatibleCorrectionService(TranscriptCorrectionService):
         if not segments:
             return []
         client = self._create_client()
+        self.failed_batches = 0
+        self.total_batches = 0
+        self.last_error_type = None
         results = []
         previous_context = ""
         for batch in self._batches(segments):
+            self.total_batches += 1
             request_payload = {
                 "previous_context": previous_context,
                 "segments": batch,
             }
-            response = client.chat.completions.create(
-                model=self.config.model,
-                temperature=0.0,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": json.dumps(
-                            request_payload,
-                            ensure_ascii=False,
-                        ),
-                    },
-                ],
-            )
-            content = response.choices[0].message.content or ""
-            batch_results = self._validate_batch(
-                batch,
-                self._parse_payload(content),
-            )
+            batch_results = None
+            last_error = None
+            for _attempt in range(2):
+                try:
+                    response = client.chat.completions.create(
+                        model=self.config.model,
+                        temperature=0.0,
+                        response_format={"type": "json_object"},
+                        messages=[
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {
+                                "role": "user",
+                                "content": json.dumps(
+                                    request_payload,
+                                    ensure_ascii=False,
+                                ),
+                            },
+                        ],
+                    )
+                    content = response.choices[0].message.content or ""
+                    batch_results = self._validate_batch(
+                        batch,
+                        self._parse_payload(content),
+                    )
+                    break
+                except Exception as exc:
+                    last_error = exc
+            if batch_results is None:
+                self.failed_batches += 1
+                self.last_error_type = type(last_error).__name__
+                batch_results = [
+                    CorrectionResult(
+                        segment_id=item["id"],
+                        corrected_text=item["text"].strip(),
+                        reason="AI 校对失败，已保留原文",
+                    )
+                    for item in batch
+                ]
             results.extend(batch_results)
             previous_context = "".join(
                 item.corrected_text for item in batch_results[-3:]
