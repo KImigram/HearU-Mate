@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from meeting.store import MeetingStore
+from meeting.summary_service import MeetingSummary
 
 from .env_store import has_api_key, load_project_environment
 from .recorder_worker import (
@@ -35,6 +36,7 @@ from .recorder_worker import (
 )
 from .settings_dialog import RuntimeSettings, SettingsDialog
 from .speaker_names_dialog import SpeakerNamesDialog
+from .summary_worker import SummaryWorker
 from .transcript_view import TranscriptList, TranscriptRow
 
 
@@ -59,6 +61,9 @@ class MainWindow(QMainWindow):
         self._worker: RecorderWorker | None = None
         self._device_thread: QThread | None = None
         self._device_worker: DeviceDiscoveryWorker | None = None
+        self._summary_thread: QThread | None = None
+        self._summary_worker: SummaryWorker | None = None
+        self._summary_meeting_id: str | None = None
         self._partial_row: TranscriptRow | None = None
         self._elapsed_seconds = 0
         self._close_after_finish = False
@@ -289,11 +294,21 @@ class MainWindow(QMainWindow):
         self.export_markdown_button.setMinimumHeight(38)
         self.export_markdown_button.setFixedWidth(162)
         self.export_markdown_button.setVisible(False)
+        self.summary_button = QPushButton("生成 AI 摘要")
+        self.summary_button.setObjectName("summaryButton")
+        self.summary_button.setMinimumHeight(38)
+        self.summary_button.setFixedWidth(148)
+        self.summary_button.setVisible(False)
 
         header_row = QHBoxLayout()
         header_row.setContentsMargins(0, 0, 0, 0)
         header_row.setSpacing(14)
         header_row.addLayout(title_column, 1)
+        header_row.addWidget(
+            self.summary_button,
+            0,
+            Qt.AlignmentFlag.AlignTop,
+        )
         header_row.addWidget(
             self.export_markdown_button,
             0,
@@ -309,11 +324,39 @@ class MainWindow(QMainWindow):
         divider.setObjectName("meetingHeaderDivider")
         divider.setFrameShape(QFrame.Shape.HLine)
         divider.setFixedHeight(1)
+
+        self.summary_card = QFrame()
+        self.summary_card.setObjectName("summaryCard")
+        summary_layout = QVBoxLayout(self.summary_card)
+        summary_layout.setContentsMargins(22, 18, 22, 18)
+        summary_layout.setSpacing(8)
+        summary_header = QHBoxLayout()
+        summary_title = QLabel("AI 会议摘要")
+        summary_title.setObjectName("summaryTitle")
+        self.summary_meta = QLabel()
+        self.summary_meta.setObjectName("summaryMeta")
+        self.summary_meta.setAlignment(Qt.AlignmentFlag.AlignRight)
+        summary_header.addWidget(summary_title)
+        summary_header.addStretch(1)
+        summary_header.addWidget(self.summary_meta)
+        self.summary_text = QLabel()
+        self.summary_text.setObjectName("summaryText")
+        self.summary_text.setTextFormat(Qt.TextFormat.PlainText)
+        self.summary_text.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        self.summary_text.setWordWrap(True)
+        summary_layout.addLayout(summary_header)
+        summary_layout.addWidget(self.summary_text)
+        self.summary_card.setVisible(False)
+
         self.detail_transcript = TranscriptList()
 
         layout.addLayout(header_row)
         layout.addSpacing(20)
         layout.addWidget(divider)
+        layout.addSpacing(14)
+        layout.addWidget(self.summary_card)
         layout.addWidget(self.detail_transcript, 1)
         return page
 
@@ -329,6 +372,7 @@ class MainWindow(QMainWindow):
         self.export_markdown_button.clicked.connect(
             self.export_current_markdown
         )
+        self.summary_button.clicked.connect(self.generate_current_summary)
 
     def show_new_meeting(self) -> None:
         if self._thread is None:
@@ -589,6 +633,17 @@ class MainWindow(QMainWindow):
         })
         self.speaker_names_button.setVisible(bool(speaker_labels))
         self.export_markdown_button.setVisible(True)
+        self.summary_button.setVisible(True)
+        self.summary_button.setEnabled(self._summary_thread is None)
+        self.summary_button.setText(
+            "摘要生成中…"
+            if self._summary_thread is not None
+            else (
+                "重新生成摘要"
+                if meeting.get("summary")
+                else "生成 AI 摘要"
+            )
+        )
         self.detail_title.setText(meeting.get("title") or "会议纪要")
         meta = [self._format_meeting_datetime(meeting.get("start_time"))]
         duration = meeting.get("duration_seconds")
@@ -596,7 +651,11 @@ class MainWindow(QMainWindow):
             meta.append(self._format_offset(float(duration)))
         if meeting.get("correction_status") == "success":
             meta.append("AI 已校对")
+        if meeting.get("summary"):
+            meta.append("AI 已摘要")
         self.detail_meta.setText("  ·  ".join(item for item in meta if item))
+
+        self._show_summary(meeting)
 
         self.detail_transcript.clear_rows()
         segments = meeting.get("segments", [])
@@ -646,6 +705,109 @@ class MainWindow(QMainWindow):
             )
         self.detail_transcript.scroll_to_top()
         self.pages.setCurrentWidget(self.detail_page)
+
+    def _show_summary(self, meeting: dict) -> None:
+        payload = meeting.get("summary")
+        if not payload:
+            self.summary_card.setVisible(False)
+            self.summary_text.clear()
+            self.summary_meta.clear()
+            return
+        try:
+            summary = self._summary_from_payload(payload)
+        except Exception:
+            self.summary_card.setVisible(False)
+            return
+        self.summary_text.setText(summary.to_plain_text())
+        generated = self._format_meeting_datetime(
+            meeting.get("summary_generated_at")
+        )
+        model = str(meeting.get("summary_model") or "").strip()
+        self.summary_meta.setText(
+            " · ".join(item for item in (model, generated) if item)
+        )
+        self.summary_card.setVisible(True)
+
+    @staticmethod
+    def _summary_from_payload(payload: dict) -> MeetingSummary:
+        from meeting.summary_service import OpenAICompatibleSummaryService
+
+        return OpenAICompatibleSummaryService.parse_payload(payload)
+
+    def generate_current_summary(self) -> None:
+        if self._summary_thread is not None or not self._current_meeting_id:
+            return
+        if not has_api_key():
+            QMessageBox.warning(
+                self,
+                "需要 API Key",
+                "请先在设置中配置 API Key，再生成 AI 摘要。",
+            )
+            return
+        meeting = self.store.get_meeting(self._current_meeting_id)
+        if meeting is None:
+            return
+        if not meeting.get("segments"):
+            QMessageBox.information(
+                self,
+                "没有可摘要内容",
+                "这场会议没有可供摘要的识别文本。",
+            )
+            return
+
+        thread = QThread(self)
+        worker = SummaryWorker(
+            meeting,
+            self.store.db_path,
+            base_url=self.runtime_settings.base_url,
+            model=self.runtime_settings.model,
+        )
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._on_summary_completed)
+        worker.error.connect(self._on_summary_error)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(self._summary_thread_finished)
+        thread.finished.connect(thread.deleteLater)
+        self._summary_thread = thread
+        self._summary_worker = worker
+        self._summary_meeting_id = self._current_meeting_id
+        self.summary_button.setEnabled(False)
+        self.summary_button.setText("摘要生成中…")
+        if not meeting.get("summary"):
+            self.summary_text.setText("正在根据完整会议内容生成摘要…")
+            self.summary_meta.clear()
+            self.summary_card.setVisible(True)
+        thread.start()
+
+    def _on_summary_completed(self, meeting_id: str, payload: object) -> None:
+        if self._current_meeting_id == meeting_id:
+            self.show_meeting(meeting_id)
+
+    def _on_summary_error(self, message: str) -> None:
+        if self._current_meeting_id == self._summary_meeting_id:
+            meeting = self.store.get_meeting(self._current_meeting_id)
+            if meeting is not None:
+                self._show_summary(meeting)
+            QMessageBox.critical(
+                self,
+                "AI 摘要生成失败",
+                "原始会议记录未受影响。\n\n" + message,
+            )
+
+    def _summary_thread_finished(self) -> None:
+        self._summary_thread = None
+        self._summary_worker = None
+        self._summary_meeting_id = None
+        if self._current_meeting_id:
+            meeting = self.store.get_meeting(self._current_meeting_id)
+            self.summary_button.setEnabled(True)
+            self.summary_button.setText(
+                "重新生成摘要"
+                if meeting and meeting.get("summary")
+                else "生成 AI 摘要"
+            )
 
     def edit_speaker_names(self) -> None:
         if not self._current_meeting_id:
@@ -708,7 +870,7 @@ class MainWindow(QMainWindow):
             destination = destination.with_suffix(".md")
         try:
             destination.write_text(
-                self._read_meeting_markdown(meeting),
+                self._build_export_markdown(meeting),
                 encoding="utf-8",
             )
         except OSError as exc:
@@ -723,6 +885,24 @@ class MainWindow(QMainWindow):
             "导出完成",
             f"Markdown 已保存到：\n{destination}",
         )
+
+    def _build_export_markdown(self, meeting: dict) -> str:
+        markdown = self._read_meeting_markdown(meeting)
+        payload = meeting.get("summary")
+        if not payload:
+            return markdown
+        summary_markdown = self._summary_from_payload(payload).to_markdown()
+        for marker in ("## 会议正文", "## Transcript"):
+            position = markdown.find(marker)
+            if position >= 0:
+                return (
+                    markdown[:position].rstrip()
+                    + "\n\n"
+                    + summary_markdown
+                    + "\n"
+                    + markdown[position:].lstrip()
+                )
+        return markdown.rstrip() + "\n\n" + summary_markdown
 
     @staticmethod
     def _split_meeting_markdown(markdown: str) -> tuple[str, str]:
@@ -796,7 +976,13 @@ class MainWindow(QMainWindow):
             if timestamp and text:
                 rows.append((timestamp, speaker or "Speaker Pending", text))
 
-        for line in markdown.splitlines():
+        body = markdown
+        for marker in ("## 会议正文", "## Transcript"):
+            position = markdown.find(marker)
+            if position >= 0:
+                body = markdown[position + len(marker):]
+                break
+        for line in body.splitlines():
             if line.startswith("### "):
                 append_current()
                 heading = line[4:].strip()
@@ -873,6 +1059,14 @@ class MainWindow(QMainWindow):
         return f"{minute:02d}:{second:02d}"
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        if self._summary_thread is not None:
+            QMessageBox.information(
+                self,
+                "AI 摘要正在生成",
+                "请等待摘要生成完成后再关闭窗口。",
+            )
+            event.ignore()
+            return
         if self._thread is None:
             if self._device_thread is not None:
                 self._device_thread.quit()

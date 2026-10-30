@@ -65,6 +65,7 @@ class SettingsDialog(QDialog):
         note = QLabel(
             "API Key 保存到本项目的 .env，并加载为进程环境变量。"
             "它不会写入源码或数据库，且已被 Git 忽略。"
+            "同一套 API 配置也用于历史会议的 AI 摘要。"
         )
         note.setWordWrap(True)
         note.setObjectName("mutedText")

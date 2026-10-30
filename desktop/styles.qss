@@ -51,13 +51,13 @@ QPushButton:disabled {
     background: #f1f5f9;
     border-color: #9ca3af;
 }
-#speakerNamesButton, #exportMarkdownButton {
+#speakerNamesButton, #exportMarkdownButton, #summaryButton {
     background: #ffffff;
     border: 1px solid #c9cbd2;
     color: #202123;
     font-weight: normal;
 }
-#speakerNamesButton:hover, #exportMarkdownButton:hover {
+#speakerNamesButton:hover, #exportMarkdownButton:hover, #summaryButton:hover {
     background: #f1f5f9;
     border-color: #9ca3af;
 }
@@ -163,6 +163,26 @@ QComboBox:focus, QLineEdit:focus {
     color: #eeeeef;
     background: #eeeeef;
     border: none;
+}
+#summaryCard {
+    background: #f7f7f8;
+    border: 1px solid #e5e5e8;
+    border-radius: 12px;
+}
+#summaryTitle {
+    background: transparent;
+    font-size: 16px;
+    font-weight: 600;
+}
+#summaryMeta {
+    background: transparent;
+    color: #929292;
+    font-size: 11px;
+}
+#summaryText {
+    background: transparent;
+    color: #343541;
+    font-size: 14px;
 }
 #segmentSpeaker {
     color: #555555;
