@@ -768,11 +768,13 @@ class MainWindow(QMainWindow):
             self.summary_card.setVisible(False)
             self.summary_text.clear()
             self.summary_meta.clear()
+            self.detail_transcript.refresh_layout()
             return
         try:
             summary = self._summary_from_payload(payload)
         except Exception:
             self.summary_card.setVisible(False)
+            self.detail_transcript.refresh_layout()
             return
         self.summary_text.setText(summary.to_plain_text())
         generated = self._format_meeting_datetime(
@@ -783,6 +785,7 @@ class MainWindow(QMainWindow):
             " · ".join(item for item in (model, generated) if item)
         )
         self.summary_card.setVisible(True)
+        self.detail_transcript.refresh_layout()
 
     @staticmethod
     def _summary_from_payload(payload: dict) -> MeetingSummary:
@@ -839,6 +842,7 @@ class MainWindow(QMainWindow):
             self.summary_text.setText("正在根据完整会议内容生成摘要…")
             self.summary_meta.clear()
             self.summary_card.setVisible(True)
+            self.detail_transcript.refresh_layout()
         thread.start()
 
     def _on_summary_completed(self, meeting_id: str, payload: object) -> None:

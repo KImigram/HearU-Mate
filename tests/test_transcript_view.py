@@ -5,7 +5,7 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QLabel
+from PySide6.QtWidgets import QApplication, QFrame, QLabel, QVBoxLayout
 
 from desktop.main_window import MainWindow
 from desktop.transcript_view import TranscriptList
@@ -123,6 +123,36 @@ class TranscriptViewTests(unittest.TestCase):
         self.app.processEvents()
         self.assertIs(transcript._layout.itemAt(0).widget(), summary)
         self.assertEqual(transcript._layout.count(), 2)
+
+    def test_summary_card_reflows_when_shown_during_generation(self) -> None:
+        transcript = TranscriptList()
+        transcript.resize(640, 260)
+        card = QFrame()
+        card_layout = QVBoxLayout(card)
+        summary_text = QLabel()
+        summary_text.setWordWrap(True)
+        card_layout.addWidget(summary_text)
+        card.hide()
+        transcript.add_top_widget(card)
+        transcript.add_row(
+            "Speaker 01",
+            "00:01",
+            "会议正文内容。" * 12,
+        )
+        transcript.show()
+        self.app.processEvents()
+
+        summary_text.setText("正在生成的摘要内容\n" * 20)
+        card.show()
+        transcript.refresh_layout()
+        self.app.processEvents()
+        self.app.processEvents()
+
+        self.assertGreaterEqual(
+            summary_text.height(),
+            summary_text.sizeHint().height(),
+        )
+        self.assertGreater(transcript.verticalScrollBar().maximum(), 0)
 
     def test_large_history_rebuild_is_painted_as_one_batch(self) -> None:
         transcript = TranscriptList()

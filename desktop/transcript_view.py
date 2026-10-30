@@ -173,6 +173,10 @@ class TranscriptList(QScrollArea):
         self._layout_refresh_pending = True
         QTimer.singleShot(0, self._apply_layout_refresh)
 
+    def refresh_layout(self) -> None:
+        """Recalculate height after a top card changes visibility or text."""
+        self._schedule_layout_refresh()
+
     def _sync_content_height(self) -> None:
         self._layout.invalidate()
         width = max(1, self.viewport().width())
