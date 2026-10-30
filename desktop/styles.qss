@@ -164,27 +164,10 @@ QComboBox:focus, QLineEdit:focus {
     background: #eeeeef;
     border: none;
 }
-#summaryCard {
-    background: #f7f7f8;
-    border: 1px solid #e5e5e8;
-    border-radius: 12px;
-    margin-top: 14px;
-    margin-bottom: 8px;
-}
-#summaryTitle {
-    background: transparent;
-    font-size: 16px;
-    font-weight: 600;
-}
-#summaryMeta {
-    background: transparent;
-    color: #929292;
-    font-size: 11px;
-}
-#summaryText {
-    background: transparent;
-    color: #343541;
-    font-size: 14px;
+#historyTranscriptView {
+    border: none;
+    background: #ffffff;
+    padding: 0;
 }
 #segmentSpeaker {
     color: #555555;
