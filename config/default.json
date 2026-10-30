@@ -1,0 +1,63 @@
+{
+  "audio": {
+    "source": "system",
+    "device_id": null,
+    "sample_rate": 16000,
+    "channels": 1,
+    "chunk_duration_ms": 100
+  },
+  "vad": {
+    "backend": "sherpa_onnx_silero",
+    "model": "D:/models/sherpa-onnx/silero-vad/silero_vad.onnx",
+    "threshold": 0.5,
+    "min_speech_duration": 0.25,
+    "min_silence_duration": 0.65,
+    "max_speech_duration": 12.0,
+    "window_size": 512,
+    "num_threads": 1
+  },
+  "asr": {
+    "backend": "sherpa_onnx_paraformer",
+    "model_dir": "D:/models/sherpa-onnx/paraformer-streaming-int8",
+    "encoder": "encoder.int8.onnx",
+    "decoder": "decoder.int8.onnx",
+    "tokens": "tokens.txt",
+    "num_threads": 2,
+    "provider": "cpu",
+    "endpoint_silence": 1.2,
+    "max_utterance_seconds": 12.0
+  },
+  "speaker": {
+    "backend": "sherpa_onnx_offline",
+    "segmentation_model": "D:/models/sherpa-onnx/speaker-diarization/pyannote-segmentation/model.int8.onnx",
+    "embedding_model": "D:/models/sherpa-onnx/speaker-diarization/3dspeaker-eres2net.onnx",
+    "num_threads": 2,
+    "num_speakers": -1,
+    "clustering_threshold": 0.85,
+    "min_duration_on": 0.3,
+    "min_duration_off": 0.5
+  },
+  "output": {
+    "root_dir": "data/meetings",
+    "save_raw_audio": false
+  },
+  "readability": {
+    "enabled": true,
+    "merge_gap_seconds": 1.8,
+    "internal_punctuation_min_chars": 36,
+    "max_paragraph_chars": 90
+  },
+  "correction": {
+    "enabled": true,
+    "backend": "openai_compatible",
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-flash",
+    "api_key_env": "DEEPSEEK_API_KEY",
+    "timeout_seconds": 90.0,
+    "max_segments_per_request": 20,
+    "max_chars_per_request": 6000,
+    "context_chars": 800,
+    "minimum_similarity": 0.45
+  }
+}
+
