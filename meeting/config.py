@@ -9,6 +9,33 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
+@dataclass(frozen=True, slots=True)
+class SpeakerEmbeddingProfile:
+    label: str
+    model_path: str
+    clustering_threshold: float
+
+
+SPEAKER_EMBEDDING_PROFILES = {
+    "3dspeaker_eres2net": SpeakerEmbeddingProfile(
+        label="3D-Speaker ERes2Net（原模型）",
+        model_path=(
+            "D:/models/sherpa-onnx/speaker-diarization/"
+            "3dspeaker-eres2net.onnx"
+        ),
+        clustering_threshold=0.85,
+    ),
+    "wespeaker_cnceleb_resnet34_lm": SpeakerEmbeddingProfile(
+        label="WeSpeaker 中文 ResNet34-LM（新模型）",
+        model_path=(
+            "D:/models/sherpa-onnx/speaker-diarization/"
+            "wespeaker-cnceleb-resnet34-LM.onnx"
+        ),
+        clustering_threshold=0.85,
+    ),
+}
+
+
 @dataclass(slots=True)
 class AudioConfig:
     source: str = "system"
@@ -46,6 +73,7 @@ class ASRConfig:
 @dataclass(slots=True)
 class SpeakerConfig:
     backend: str = "sherpa_onnx_offline"
+    embedding_profile: str = "3dspeaker_eres2net"
     segmentation_model: str = (
         "D:/models/sherpa-onnx/speaker-diarization/"
         "pyannote-segmentation/model.int8.onnx"
@@ -61,6 +89,18 @@ class SpeakerConfig:
     clustering_threshold: float = 0.85
     min_duration_on: float = 0.3
     min_duration_off: float = 0.5
+
+    def select_embedding_profile(self, profile_name: str) -> None:
+        try:
+            profile = SPEAKER_EMBEDDING_PROFILES[profile_name]
+        except KeyError as exc:
+            supported = ", ".join(SPEAKER_EMBEDDING_PROFILES)
+            raise ValueError(
+                f"未知说话人模型 {profile_name!r}；可选值：{supported}"
+            ) from exc
+        self.embedding_profile = profile_name
+        self.embedding_model = profile.model_path
+        self.clustering_threshold = profile.clustering_threshold
 
 
 @dataclass(slots=True)

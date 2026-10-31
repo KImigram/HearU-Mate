@@ -29,6 +29,7 @@
   },
   "speaker": {
     "backend": "sherpa_onnx_offline",
+    "embedding_profile": "3dspeaker_eres2net",
     "segmentation_model": "D:/models/sherpa-onnx/speaker-diarization/pyannote-segmentation/model.int8.onnx",
     "embedding_model": "D:/models/sherpa-onnx/speaker-diarization/3dspeaker-eres2net.onnx",
     "num_threads": 2,

@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from meeting.config import SPEAKER_EMBEDDING_PROFILES
 from meeting.store import MeetingStore
 from meeting.summary_service import MeetingSummary
 
@@ -179,6 +180,12 @@ class MainWindow(QMainWindow):
         ]:
             self.speaker_combo.addItem(label, value)
 
+        speaker_model_label = QLabel("说话人模型")
+        speaker_model_label.setObjectName("fieldLabel")
+        self.speaker_model_combo = QComboBox()
+        for profile_name, profile in SPEAKER_EMBEDDING_PROFILES.items():
+            self.speaker_model_combo.addItem(profile.label, profile_name)
+
         self.correction_check = QCheckBox("启用 AI 会后校对")
         self.correction_check.setChecked(
             self.runtime_settings.correction_enabled
@@ -208,6 +215,8 @@ class MainWindow(QMainWindow):
         card_layout.addWidget(self.device_combo)
         card_layout.addWidget(speaker_label)
         card_layout.addWidget(self.speaker_combo)
+        card_layout.addWidget(speaker_model_label)
+        card_layout.addWidget(self.speaker_model_combo)
         card_layout.addWidget(self.correction_check)
         card_layout.addWidget(hint)
         card_layout.addWidget(self.mode_hint)
@@ -488,6 +497,9 @@ class MainWindow(QMainWindow):
             device_id=self.device_combo.currentData(),
             device_name=self.device_combo.currentText(),
             expected_speakers=int(self.speaker_combo.currentData()),
+            speaker_embedding_profile=str(
+                self.speaker_model_combo.currentData()
+            ),
             correction_enabled=self.correction_check.isChecked(),
             base_url=self.runtime_settings.base_url,
             model=self.runtime_settings.model,

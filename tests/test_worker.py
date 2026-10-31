@@ -15,6 +15,31 @@ class WorkerTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = QCoreApplication.instance() or QCoreApplication([])
 
+    def test_worker_applies_selected_speaker_embedding_profile(self) -> None:
+        options = RecorderOptions(
+            device_id=None,
+            device_name="测试设备",
+            expected_speakers=2,
+            correction_enabled=False,
+            base_url="https://api.deepseek.com",
+            model="deepseek-flash",
+            simulation=True,
+            models_enabled=False,
+            speaker_embedding_profile="wespeaker_cnceleb_resnet34_lm",
+        )
+        worker = RecorderWorker(options, Path.cwd())
+        config = worker._new_config()
+        self.assertEqual(
+            config.speaker.embedding_profile,
+            "wespeaker_cnceleb_resnet34_lm",
+        )
+        self.assertTrue(
+            config.speaker.embedding_model.endswith(
+                "wespeaker-cnceleb-resnet34-LM.onnx"
+            )
+        )
+        self.assertEqual(config.speaker.num_speakers, 2)
+
     def test_simulation_emits_signal_chain_and_saves_history(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as folder:
             root = Path(folder)

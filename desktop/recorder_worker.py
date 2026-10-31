@@ -32,6 +32,7 @@ class RecorderOptions:
     simulation: bool = False
     models_enabled: bool = True
     simulation_delay: float = 0.12
+    speaker_embedding_profile: str = "3dspeaker_eres2net"
 
 
 class RecorderWorker(QObject):
@@ -107,6 +108,9 @@ class RecorderWorker(QObject):
         config = MeetingConfig()
         config.audio.device_id = self.options.device_id
         config.speaker.num_speakers = self.options.expected_speakers
+        config.speaker.select_embedding_profile(
+            self.options.speaker_embedding_profile
+        )
         config.correction.enabled = self.options.correction_enabled
         config.correction.base_url = self.options.base_url
         config.correction.model = self.options.model

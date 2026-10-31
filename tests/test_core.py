@@ -9,7 +9,7 @@ import numpy as np
 
 from meeting.audio_utils import normalize_audio
 from meeting.alignment import align_speaker
-from meeting.config import MeetingConfig
+from meeting.config import MeetingConfig, SPEAKER_EMBEDDING_PROFILES
 from meeting.recorder import MeetingRecorder
 from meeting.store import MeetingStore
 from meeting.speaker_service import SpeakerSegment
@@ -20,6 +20,26 @@ from meeting.transcript import MeetingTranscript, TranscriptSegment
 class CoreTests(unittest.TestCase):
     def test_auto_speaker_clustering_uses_conservative_threshold(self) -> None:
         self.assertEqual(MeetingConfig().speaker.clustering_threshold, 0.85)
+
+    def test_speaker_embedding_profiles_switch_without_loading_models(self) -> None:
+        config = MeetingConfig().speaker
+        config.select_embedding_profile("wespeaker_cnceleb_resnet34_lm")
+        profile = SPEAKER_EMBEDDING_PROFILES[
+            "wespeaker_cnceleb_resnet34_lm"
+        ]
+        self.assertEqual(
+            config.embedding_profile,
+            "wespeaker_cnceleb_resnet34_lm",
+        )
+        self.assertEqual(config.embedding_model, profile.model_path)
+        self.assertEqual(
+            config.clustering_threshold,
+            profile.clustering_threshold,
+        )
+
+    def test_unknown_speaker_embedding_profile_is_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            MeetingConfig().speaker.select_embedding_profile("unknown")
 
     def test_alignment_returns_one_dominant_speaker_not_a_combination(self) -> None:
         transcript = TranscriptSegment(

@@ -96,6 +96,9 @@ class MeetingRecorder:
             "asr_backend": self.config.asr.backend,
             "asr_model_dir": self.config.asr.model_dir,
             "speaker_backend": self.config.speaker.backend,
+            "speaker_embedding_profile": (
+                self.config.speaker.embedding_profile
+            ),
             "speaker_segmentation_model": (
                 self.config.speaker.segmentation_model
             ),
