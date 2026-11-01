@@ -11,6 +11,8 @@ SSE 或本地 HTTP 服务，也不依赖 DocAgent 的 Agent、视觉、订单与
 - PySide6 主窗口、浅色桌面布局、历史会议侧栏和设置页。
 - QThread 录制工作线程，以及 partial、final、status、completed、error 信号链。
 - Partial 在同一个列表项中增长，Final 后固定并创建下一段。
+- 录制页可开启始终置顶的实时悬浮字幕；窗口支持拖动和独立关闭，
+  Partial 在当前句内增长，Final 保留到下一句开始时再替换。
 - SQLite 历史会议、原始文本与校对文本分离保存。
 - JSON 和 Markdown 输出。
 - 会后可为 Speaker 标签设置姓名；原始标签保留在 JSON，Markdown 使用姓名

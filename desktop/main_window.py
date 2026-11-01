@@ -40,6 +40,7 @@ from .recorder_worker import (
 )
 from .settings_dialog import RuntimeSettings, SettingsDialog
 from .speaker_names_dialog import SpeakerNamesDialog
+from .subtitle_overlay import SubtitleOverlay
 from .summary_worker import SummaryWorker
 from .transcript_view import TranscriptList, TranscriptRow
 
@@ -72,6 +73,7 @@ class MainWindow(QMainWindow):
         self._correction_worker: HistoricalCorrectionWorker | None = None
         self._correction_meeting_id: str | None = None
         self._partial_row: TranscriptRow | None = None
+        self._subtitle_overlay: SubtitleOverlay | None = None
         self._elapsed_seconds = 0
         self._close_after_finish = False
         self._current_meeting_id: str | None = None
@@ -282,9 +284,15 @@ class MainWindow(QMainWindow):
         self.stop_button.setObjectName("stopButton")
         self.stop_button.setMinimumHeight(44)
         self.stop_button.setMaximumWidth(180)
+        self.subtitle_toggle_button = QPushButton("开启悬浮字幕")
+        self.subtitle_toggle_button.setObjectName("subtitleToggleButton")
+        self.subtitle_toggle_button.setMinimumHeight(44)
+        self.subtitle_toggle_button.setFixedWidth(150)
 
         bottom = QHBoxLayout()
         bottom.addStretch(1)
+        bottom.addWidget(self.subtitle_toggle_button)
+        bottom.addSpacing(10)
         bottom.addWidget(self.stop_button)
 
         layout.addLayout(top)
@@ -409,6 +417,9 @@ class MainWindow(QMainWindow):
         self.settings_button.clicked.connect(self.open_settings)
         self.start_button.clicked.connect(self.start_recording)
         self.stop_button.clicked.connect(self.stop_recording)
+        self.subtitle_toggle_button.clicked.connect(
+            self.toggle_subtitle_overlay
+        )
         self.history_tree.itemClicked.connect(self._history_clicked)
         self.speaker_names_button.clicked.connect(
             self.edit_speaker_names
@@ -581,6 +592,32 @@ class MainWindow(QMainWindow):
         self.stop_button.setEnabled(False)
         self._worker.request_stop()
 
+    def toggle_subtitle_overlay(self) -> None:
+        if (
+            self._subtitle_overlay is not None
+            and self._subtitle_overlay.isVisible()
+        ):
+            self._subtitle_overlay.close()
+            return
+        overlay = SubtitleOverlay()
+        overlay.closed.connect(self._on_subtitle_overlay_closed)
+        self._subtitle_overlay = overlay
+        overlay.show()
+        overlay.move_to_default_position()
+        overlay.raise_()
+        self.subtitle_toggle_button.setText("关闭悬浮字幕")
+
+    def _on_subtitle_overlay_closed(self) -> None:
+        overlay = self.sender()
+        if overlay is self._subtitle_overlay:
+            self._subtitle_overlay.deleteLater()
+            self._subtitle_overlay = None
+        self.subtitle_toggle_button.setText("开启悬浮字幕")
+
+    def _close_subtitle_overlay(self) -> None:
+        if self._subtitle_overlay is not None:
+            self._subtitle_overlay.close()
+
     def _on_partial(self, text: str) -> None:
         if self._partial_row is None:
             self._partial_row = self.transcript_list.add_row(
@@ -589,6 +626,8 @@ class MainWindow(QMainWindow):
                 partial=True,
             )
         self._partial_row.set_text(text)
+        if self._subtitle_overlay is not None:
+            self._subtitle_overlay.update_partial(text)
         self.transcript_list.scroll_to_bottom()
 
     def _on_final(self, text: str, start: float, end: float) -> None:
@@ -601,6 +640,8 @@ class MainWindow(QMainWindow):
             )
         self._partial_row.finalize(text, timestamp)
         self._partial_row = None
+        if self._subtitle_overlay is not None:
+            self._subtitle_overlay.update_final(text)
         self.transcript_list.scroll_to_bottom()
 
     def _on_status(self, status: str) -> None:
@@ -611,12 +652,14 @@ class MainWindow(QMainWindow):
     def _on_completed(self, meeting_id: str) -> None:
         self.elapsed_timer.stop()
         self.stop_button.setEnabled(False)
+        self._close_subtitle_overlay()
         self.refresh_history()
         QTimer.singleShot(250, lambda: self.show_meeting(meeting_id))
 
     def _on_error(self, message: str) -> None:
         self.elapsed_timer.stop()
         self.stop_button.setEnabled(False)
+        self._close_subtitle_overlay()
         self.recording_status.setText("发生错误")
         QMessageBox.critical(
             self,
@@ -1350,6 +1393,7 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         if self._thread is None:
+            self._close_subtitle_overlay()
             if self._device_thread is not None:
                 self._device_thread.quit()
                 self._device_thread.wait(1000)

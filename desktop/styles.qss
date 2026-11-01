@@ -78,6 +78,45 @@ QPushButton:disabled {
     background: #fffafa;
     font-weight: bold;
 }
+#subtitleToggleButton {
+    color: #202123;
+    border-color: #b8c7d9;
+    background: #f7fbff;
+    font-weight: normal;
+}
+#subtitleToggleButton:hover {
+    background: #edf6ff;
+    border-color: #8aa8c7;
+}
+#subtitleOverlayCard {
+    background: #ffffff;
+    border: 1px solid #cfd3da;
+    border-radius: 14px;
+}
+#subtitleOverlayCaption {
+    color: #7a7f89;
+    font-size: 11px;
+    font-weight: normal;
+    background: transparent;
+}
+#subtitleOverlayText {
+    color: #16181c;
+    background: transparent;
+    font-weight: normal;
+}
+#subtitleOverlayCloseButton {
+    border: none;
+    border-radius: 7px;
+    padding: 0;
+    color: #666b73;
+    background: transparent;
+    font-size: 18px;
+    font-weight: normal;
+}
+#subtitleOverlayCloseButton:hover {
+    color: #202123;
+    background: #edf0f3;
+}
 #contentCard {
     border: 1px solid #e5e5e8;
     border-radius: 16px;
