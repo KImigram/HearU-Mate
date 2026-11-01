@@ -4,7 +4,7 @@ import sys
 import multiprocessing
 from pathlib import Path
 
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
 from meeting.windows_com import preload_soundcard
@@ -35,6 +35,9 @@ def create_app(paths: RuntimePaths | None = None) -> QApplication:
     preload_soundcard()
     app.setApplicationName("HearU Mate · 听会儿")
     app.setOrganizationName("MeetingRecorderDesktop")
+    app.setWindowIcon(
+        QIcon(str(paths.resource_root / "assets" / "hearu_mate.ico"))
+    )
     app_font = QFont("Microsoft YaHei")
     app_font.setPointSize(10)
     app_font.setWeight(QFont.Weight.Normal)

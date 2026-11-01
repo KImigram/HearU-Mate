@@ -54,6 +54,7 @@ def missing_runtime_files(paths: RuntimePaths) -> list[Path]:
         paths.resource_root / "desktop" / "styles.qss",
         paths.resource_root / "assets" / "check.svg",
         paths.resource_root / "assets" / "down_arrow.svg",
+        paths.resource_root / "assets" / "hearu_mate.ico",
     ]
     required.extend(paths.models_root / item for item in REQUIRED_MODEL_FILES)
     return [path for path in required if not path.is_file()]

@@ -46,6 +46,7 @@ class RuntimePathsTests(unittest.TestCase):
             (resources / "desktop" / "styles.qss").write_text("")
             (resources / "assets" / "check.svg").write_text("")
             (resources / "assets" / "down_arrow.svg").write_text("")
+            (resources / "assets" / "hearu_mate.ico").write_bytes(b"ico")
             paths = RuntimePaths(
                 app_root=root,
                 resource_root=resources,

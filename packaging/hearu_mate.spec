@@ -73,6 +73,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="HearU Mate",
+    icon=str(project_root / "assets" / "hearu_mate.ico"),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

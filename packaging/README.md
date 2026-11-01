@@ -44,5 +44,11 @@ The generated installer is not code-signed unless a signing certificate is
 configured separately. Windows SmartScreen can therefore warn on a newly
 distributed build even when its SHA-256 is published.
 
+The installer creates a standard Windows uninstaller and a Start menu entry
+named `卸载 HearU Mate`. The application can also be removed from Windows
+Settings > Apps > Installed apps. Uninstalling removes the application and
+bundled models, but deliberately keeps `%LOCALAPPDATA%\HearU Mate` so meetings
+and API settings are not destroyed accidentally.
+
 Uninstalling removes application files and bundled models. It intentionally
 keeps `%LOCALAPPDATA%\HearU Mate`, including meetings and the API configuration.
