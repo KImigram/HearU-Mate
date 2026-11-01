@@ -59,9 +59,13 @@ requirements.txt 只声明运行库，不包含或下载任何模型。模型文
 - 3D-Speaker ERes2Net：
   `speaker-diarization/3dspeaker-eres2net.onnx`（保留为默认后端）。
 - WeSpeaker CN-Celeb ResNet34-LM：
-  `speaker-diarization/wespeaker-cnceleb-resnet34-LM.onnx`，来源为官方
-  `Wespeaker/wespeaker-cnceleb-resnet34-LM`，SHA-256 为
+  原始权重为 `speaker-diarization/wespeaker-cnceleb-resnet34-LM.onnx`，
+  来源于官方 `Wespeaker/wespeaker-cnceleb-resnet34-LM`，SHA-256 为
   `e7584940aeac8d5512d875e58ce6c09ba4ddad65d8128e1dac0d93aadd087ebb`。
+  程序实际使用保留相同权重、按 sherpa-onnx 官方字段补充元数据的
+  `speaker-diarization/wespeaker-cnceleb-resnet34-LM-sherpa.onnx`，
+  SHA-256 为
+  `8d8ed5770e08001942b8e9922319529f800b5c1bbe8a59524a113d0ace0d2a17`。
 
 模型选择只改变声纹提取模型及其聚类配置，不改变 pyannote segmentation、
 ASR、时间对齐或历史记录格式。模型仍在开始会议后延迟加载。

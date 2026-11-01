@@ -29,7 +29,7 @@ SPEAKER_EMBEDDING_PROFILES = {
         label="WeSpeaker 中文 ResNet34-LM（新模型）",
         model_path=(
             "D:/models/sherpa-onnx/speaker-diarization/"
-            "wespeaker-cnceleb-resnet34-LM.onnx"
+            "wespeaker-cnceleb-resnet34-LM-sherpa.onnx"
         ),
         clustering_threshold=0.85,
     ),

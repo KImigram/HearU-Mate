@@ -35,7 +35,7 @@ class WorkerTests(unittest.TestCase):
         )
         self.assertTrue(
             config.speaker.embedding_model.endswith(
-                "wespeaker-cnceleb-resnet34-LM.onnx"
+                "wespeaker-cnceleb-resnet34-LM-sherpa.onnx"
             )
         )
         self.assertEqual(config.speaker.num_speakers, 2)
