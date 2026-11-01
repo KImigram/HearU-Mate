@@ -108,9 +108,10 @@ if (-not $SkipInstaller) {
     if (-not $isccCandidates) {
         throw "Inno Setup compiler was not found. Install Inno Setup 7/6 or use -SkipInstaller."
     }
+    $iscc = @($isccCandidates)[0]
     $releaseDir = Join-Path $projectRoot "release"
     New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
-    & $isccCandidates[0] "/DMyAppVersion=$Version" `
+    & $iscc "/DMyAppVersion=$Version" `
         (Join-Path $PSScriptRoot "installer.iss")
     if ($LASTEXITCODE -ne 0) {
         throw "Inno Setup failed with exit code $LASTEXITCODE"
