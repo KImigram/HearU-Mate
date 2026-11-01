@@ -5,10 +5,11 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .runtime_paths import DEFAULT_DEVELOPMENT_MODELS
+from .runtime_paths import get_runtime_paths
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+def _installed_model_path(relative_path: str) -> str:
+    return str(get_runtime_paths().models_root / relative_path)
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +48,9 @@ class AudioConfig:
 @dataclass(slots=True)
 class VADConfig:
     backend: str = "sherpa_onnx_silero"
-    model: str = "D:/models/sherpa-onnx/silero-vad/silero_vad.onnx"
+    model: str = field(default_factory=lambda: _installed_model_path(
+        "silero-vad/silero_vad.onnx"
+    ))
     threshold: float = 0.5
     min_speech_duration: float = 0.25
     min_silence_duration: float = 0.65
@@ -59,7 +62,9 @@ class VADConfig:
 @dataclass(slots=True)
 class ASRConfig:
     backend: str = "sherpa_onnx_paraformer"
-    model_dir: str = "D:/models/sherpa-onnx/paraformer-streaming-int8"
+    model_dir: str = field(default_factory=lambda: _installed_model_path(
+        "paraformer-streaming-int8"
+    ))
     encoder: str = "encoder.int8.onnx"
     decoder: str = "decoder.int8.onnx"
     tokens: str = "tokens.txt"
@@ -73,14 +78,12 @@ class ASRConfig:
 class SpeakerConfig:
     backend: str = "sherpa_onnx_offline"
     embedding_profile: str = "3dspeaker_eres2net"
-    segmentation_model: str = (
-        "D:/models/sherpa-onnx/speaker-diarization/"
-        "pyannote-segmentation/model.int8.onnx"
-    )
-    embedding_model: str = (
-        "D:/models/sherpa-onnx/speaker-diarization/"
-        "3dspeaker-eres2net.onnx"
-    )
+    segmentation_model: str = field(default_factory=lambda: _installed_model_path(
+        "speaker-diarization/pyannote-segmentation/model.int8.onnx"
+    ))
+    embedding_model: str = field(default_factory=lambda: _installed_model_path(
+        "speaker-diarization/3dspeaker-eres2net.onnx"
+    ))
     num_threads: int = 2
     num_speakers: int = -1
     # In automatic mode, a larger distance threshold merges more embeddings
@@ -92,7 +95,7 @@ class SpeakerConfig:
     def select_embedding_profile(
         self,
         profile_name: str,
-        models_root: str | Path = DEFAULT_DEVELOPMENT_MODELS,
+        models_root: str | Path | None = None,
     ) -> None:
         try:
             profile = SPEAKER_EMBEDDING_PROFILES[profile_name]
@@ -102,15 +105,22 @@ class SpeakerConfig:
                 f"未知说话人模型 {profile_name!r}；可选值：{supported}"
             ) from exc
         self.embedding_profile = profile_name
+        root = (
+            Path(models_root).resolve()
+            if models_root is not None
+            else get_runtime_paths().models_root
+        )
         self.embedding_model = str(
-            Path(models_root).resolve() / profile.relative_path
+            root / profile.relative_path
         )
         self.clustering_threshold = profile.clustering_threshold
 
 
 @dataclass(slots=True)
 class OutputConfig:
-    root_dir: str = str(PROJECT_ROOT / "data" / "meetings")
+    root_dir: str = field(default_factory=lambda: str(
+        get_runtime_paths().data_dir
+    ))
     save_raw_audio: bool = False
 
 

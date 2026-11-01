@@ -68,14 +68,11 @@ requirements.txt 只声明运行库，不包含或下载任何模型。模型文
 模型选择只改变声纹提取模型及其聚类配置，不改变 pyannote segmentation、
 ASR、时间对齐或历史记录格式。模型仍在开始会议后延迟加载。
 
-## 开发模式启动
+## 当前分支运行方式
 
-在项目目录执行：
-
-    & "D:\apps\anaconda\envs\meeting_onnx\python.exe" -m desktop.app
-
-点击“开始纪要”会加载本地模型并捕获所选 Windows 输出设备。结束后依次执行
-说话人区分、可选 AI 校对和保存，结果写入 data\meetings，历史列表会刷新。
+`packaging/windows-installer` 是安装版专用分支，只使用安装目录模型和
+`%LOCALAPPDATA%\HearU Mate` 用户数据路径，不再兼容源码开发目录布局。
+需要继续源码开发或直接从 Conda 启动时，请切换回 `main` 分支。
 
 ## Windows 安装包
 

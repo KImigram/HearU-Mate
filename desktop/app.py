@@ -71,9 +71,9 @@ def main() -> int:
     app = create_app(paths)
     window = MainWindow(
         paths.settings_dir,
+        paths.data_dir,
+        paths.models_root,
         simulation_mode=False,
-        data_dir=paths.data_dir,
-        models_root=paths.models_root,
     )
     window.show()
     return app.exec()

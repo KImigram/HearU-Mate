@@ -158,7 +158,7 @@ class WindowsComTests(unittest.TestCase):
             simulation=False,
             models_enabled=True,
         )
-        worker = RecorderWorker(options, ".")
+        worker = RecorderWorker(options, ".", ".")
 
         def fake_run_real():
             self.assertTrue(TrackingApartment.active)
@@ -196,7 +196,7 @@ class WindowsComTests(unittest.TestCase):
             simulation=False,
             models_enabled=True,
         )
-        worker = RecorderWorker(options, ".")
+        worker = RecorderWorker(options, ".", ".")
 
         def failing_run_real():
             worker._recorder = FakeRecorder(events)
@@ -232,7 +232,12 @@ class WindowsComTests(unittest.TestCase):
                     SlowDeviceDiscoveryWorker,
                 ),
             ):
-                window = MainWindow(folder, simulation_mode=True)
+                window = MainWindow(
+                    folder,
+                    Path(folder) / "data",
+                    Path(folder) / "models",
+                    simulation_mode=True,
+                )
                 loop = QEventLoop()
                 timer_delays: list[float] = []
                 started = time.perf_counter()

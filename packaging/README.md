@@ -1,6 +1,8 @@
 # Windows packaging
 
-This directory is used only on the `packaging/windows-installer` branch.
+This directory is used only on the `packaging/windows-installer` branch. The
+branch is install-only; development/source execution stays on `main` and no
+dual-mode path switching is retained here.
 
 The build produces a PyInstaller **onedir** application first. Models remain
 ordinary files under `models/` beside the executable so sherpa-onnx can open

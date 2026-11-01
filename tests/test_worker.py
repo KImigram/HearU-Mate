@@ -27,7 +27,11 @@ class WorkerTests(unittest.TestCase):
             models_enabled=False,
             speaker_embedding_profile="wespeaker_cnceleb_resnet34_lm",
         )
-        worker = RecorderWorker(options, Path.cwd())
+        worker = RecorderWorker(
+            options,
+            Path.cwd() / "test-data",
+            Path.cwd() / "test-models",
+        )
         config = worker._new_config()
         self.assertEqual(
             config.speaker.embedding_profile,
@@ -54,7 +58,11 @@ class WorkerTests(unittest.TestCase):
                 models_enabled=False,
                 simulation_delay=0.0,
             )
-            worker = RecorderWorker(options, root)
+            worker = RecorderWorker(
+                options,
+                root / "data",
+                root / "models",
+            )
             partials: list[str] = []
             finals: list[str] = []
             statuses: list[str] = []
@@ -72,7 +80,7 @@ class WorkerTests(unittest.TestCase):
             self.assertEqual(statuses[-1], "已完成")
             self.assertEqual(len(completed), 1)
             meeting = MeetingStore(
-                root / "data" / "meetings" / "meeting_history.db"
+                root / "data" / "meeting_history.db"
             ).get_meeting(completed[0])
             self.assertEqual(meeting["status"], "completed")
             self.assertEqual(len(meeting["segments"]), 2)
@@ -94,9 +102,8 @@ class WorkerTests(unittest.TestCase):
             )
             worker = RecorderWorker(
                 options,
-                root,
-                data_dir=data_dir,
-                models_root=models_root,
+                data_dir,
+                models_root,
             )
             config = worker._new_config()
             self.assertEqual(Path(config.output.root_dir), data_dir)

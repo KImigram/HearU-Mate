@@ -48,25 +48,14 @@ class RecorderWorker(QObject):
     def __init__(
         self,
         options: RecorderOptions,
-        project_root: str | Path,
+        data_dir: str | Path,
+        models_root: str | Path,
         parent=None,
-        *,
-        data_dir: str | Path | None = None,
-        models_root: str | Path | None = None,
     ) -> None:
         super().__init__(parent)
         self.options = options
-        self.project_root = Path(project_root).resolve()
-        self.data_dir = (
-            Path(data_dir).resolve()
-            if data_dir is not None
-            else self.project_root / "data" / "meetings"
-        )
-        self.models_root = (
-            Path(models_root).resolve()
-            if models_root is not None
-            else Path("D:/models/sherpa-onnx")
-        )
+        self.data_dir = Path(data_dir).resolve()
+        self.models_root = Path(models_root).resolve()
         self._stop_event = threading.Event()
         self._recorder: MeetingRecorder | None = None
         self._meeting_id: str | None = None
@@ -123,7 +112,8 @@ class RecorderWorker(QObject):
         config.audio.device_id = self.options.device_id
         config.speaker.num_speakers = self.options.expected_speakers
         config.speaker.select_embedding_profile(
-            self.options.speaker_embedding_profile
+            self.options.speaker_embedding_profile,
+            self.models_root,
         )
         config.correction.enabled = self.options.correction_enabled
         config.correction.base_url = self.options.base_url

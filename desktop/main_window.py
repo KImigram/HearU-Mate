@@ -48,26 +48,18 @@ from .transcript_view import TranscriptList, TranscriptRow
 class MainWindow(QMainWindow):
     def __init__(
         self,
-        project_root: str | Path,
+        settings_dir: str | Path,
+        data_dir: str | Path,
+        models_root: str | Path,
         *,
         simulation_mode: bool = False,
-        data_dir: str | Path | None = None,
-        models_root: str | Path | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
-        self.project_root = Path(project_root).resolve()
-        self.data_dir = (
-            Path(data_dir).resolve()
-            if data_dir is not None
-            else self.project_root / "data" / "meetings"
-        )
-        self.models_root = (
-            Path(models_root).resolve()
-            if models_root is not None
-            else Path("D:/models/sherpa-onnx")
-        )
-        load_project_environment(self.project_root)
+        self.settings_dir = Path(settings_dir).resolve()
+        self.data_dir = Path(data_dir).resolve()
+        self.models_root = Path(models_root).resolve()
+        load_project_environment(self.settings_dir)
         self.simulation_mode = simulation_mode
         self.models_enabled = not simulation_mode
         self.store = MeetingStore(self.data_dir / "meeting_history.db")
@@ -451,7 +443,7 @@ class MainWindow(QMainWindow):
     def open_settings(self) -> None:
         dialog = SettingsDialog(
             self.runtime_settings,
-            self.project_root,
+            self.settings_dir,
             parent=self,
         )
         if dialog.exec():
@@ -466,7 +458,7 @@ class MainWindow(QMainWindow):
             return
         dialog = SettingsDialog(
             self.runtime_settings,
-            self.project_root,
+            self.settings_dir,
             require_api_key=True,
             parent=self,
         )
@@ -532,9 +524,8 @@ class MainWindow(QMainWindow):
         thread = QThread(self)
         worker = RecorderWorker(
             options,
-            self.project_root,
-            data_dir=self.data_dir,
-            models_root=self.models_root,
+            self.data_dir,
+            self.models_root,
         )
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
