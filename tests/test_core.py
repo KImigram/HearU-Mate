@@ -70,28 +70,21 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(normalized.shape, (1600,))
 
     def test_speaker_audio_is_spooled_to_temporary_file(self) -> None:
-        class FakeResult:
-            @staticmethod
-            def sort_by_start_time():
-                return []
+        received = []
 
-        class FakeDiarizer:
-            sample_rate = 16000
-
-            def __init__(self) -> None:
-                self.received = None
-
-            def process(self, samples):
-                self.received = np.array(samples, copy=True)
-                return FakeResult()
+        def fake_runner(config, audio_path, sample_count):
+            received.append(np.fromfile(audio_path, dtype=np.float32))
+            self.assertEqual(sample_count, 3200)
+            return []
 
         service = SherpaOnnxSpeakerDiarizationService(
-            MeetingConfig().speaker
+            MeetingConfig().speaker,
+            process_runner=fake_runner,
         )
-        diarizer = FakeDiarizer()
-        service._diarizer = diarizer
         service._open_audio_spool()
+        service._started = True
         spool = service._audio_spool
+        spool_path = service._audio_spool_path
 
         service.feed_audio(
             np.arange(1600, dtype=np.float32),
@@ -110,11 +103,60 @@ class CoreTests(unittest.TestCase):
 
         self.assertEqual(service.get_segments(), [])
         np.testing.assert_array_equal(
-            diarizer.received,
+            received[0],
             np.arange(3200, dtype=np.float32),
         )
         service.stop()
         self.assertTrue(spool.closed)
+        self.assertFalse(spool_path.exists())
+
+    def test_speaker_failure_falls_back_and_does_not_lose_transcript(self) -> None:
+        class FakeAudio:
+            @staticmethod
+            def stop():
+                return None
+
+        class FakeAsr:
+            @staticmethod
+            def finalize_utterance(end_time):
+                return None
+
+            @staticmethod
+            def stop():
+                return None
+
+        class CrashedSpeaker:
+            @staticmethod
+            def get_segments():
+                raise RuntimeError("native child exited 0xC0000005")
+
+            @staticmethod
+            def stop():
+                return None
+
+        config = MeetingConfig()
+        config.correction.enabled = False
+        transcript = MeetingTranscript.create(meeting_id="fallback-speaker")
+        transcript.add_segment(TranscriptSegment(
+            start_time=0.0,
+            end_time=2.0,
+            text="这段文字必须保留",
+        ))
+        recorder = MeetingRecorder(
+            config=config,
+            audio_capture=FakeAudio(),
+            asr=FakeAsr(),
+            speaker=CrashedSpeaker(),
+        )
+        recorder.transcript = transcript
+        recorder._running = True
+
+        recorder.stop()
+
+        self.assertEqual(transcript.segments[0].speaker, "Speaker_01")
+        self.assertEqual(transcript.metadata["speaker_status"], "fallback")
+        self.assertEqual(transcript.metadata["correction_status"], "disabled")
+        self.assertIsNotNone(transcript.end_time)
 
     def test_store_preserves_raw_and_corrected_text(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as folder:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import multiprocessing
 from pathlib import Path
 
 from PySide6.QtGui import QFont
@@ -50,6 +51,9 @@ def create_app() -> QApplication:
 
 
 def main() -> int:
+    # Speaker diarization runs in a spawned process so a native sherpa-onnx
+    # crash cannot terminate the desktop UI. Required by frozen Windows apps.
+    multiprocessing.freeze_support()
     load_project_environment(PROJECT_ROOT)
     app = create_app()
     window = MainWindow(PROJECT_ROOT, simulation_mode=False)

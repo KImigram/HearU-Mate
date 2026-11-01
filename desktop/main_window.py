@@ -841,7 +841,10 @@ class MainWindow(QMainWindow):
             meta.append(self._format_offset(float(duration)))
         correction_status = meeting.get("correction_status")
         retryable_correction = (
-            correction_status in {"fallback", "partial"}
+            (
+                correction_status in {"fallback", "partial"}
+                or meeting.get("status") == "interrupted"
+            )
             and bool(meeting.get("segments"))
         )
         self.retry_correction_button.setVisible(retryable_correction)
@@ -852,7 +855,11 @@ class MainWindow(QMainWindow):
         self.retry_correction_button.setText(
             "正在重新校对…"
             if self._correction_meeting_id == meeting_id
-            else "重新 AI 校对"
+            else (
+                "恢复并 AI 校对"
+                if meeting.get("status") == "interrupted"
+                else "重新 AI 校对"
+            )
         )
         correction_error = str(
             meeting.get("correction_error") or ""
@@ -868,6 +875,11 @@ class MainWindow(QMainWindow):
             meta.append("AI 部分校对，其余保留原文")
         elif correction_status == "fallback":
             meta.append("AI 校对失败，已保留原文")
+        elif meeting.get("status") == "interrupted":
+            meta.append("会后处理曾中断，可恢复校对")
+        speaker_status = meeting.get("speaker_status")
+        if speaker_status in {"fallback", "recovered_single_speaker"}:
+            meta.append("说话人区分失败，已按单人保存")
         if meeting.get("summary"):
             meta.append("AI 已摘要")
         self.detail_meta.setText("  ·  ".join(item for item in meta if item))

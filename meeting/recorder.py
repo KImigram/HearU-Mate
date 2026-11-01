@@ -229,12 +229,28 @@ class MeetingRecorder:
         except Exception as exc:
             errors.append(exc)
             logger.exception("Failed to finalize ASR stream")
+        speaker_error = None
         try:
             self._emit(RecorderEvent("status", "processing"))
-            speaker_segments = self.speaker.get_segments()
+            if self.config.speaker.num_speakers == 1:
+                speaker_segments = []
+                self.transcript.metadata["speaker_status"] = (
+                    "fixed_single_speaker"
+                )
+            else:
+                speaker_segments = self.speaker.get_segments()
+                self.transcript.metadata["speaker_status"] = (
+                    "success" if speaker_segments else "fallback"
+                )
         except Exception as exc:
             speaker_segments = []
+            speaker_error = exc
             errors.append(exc)
+            self.transcript.metadata["speaker_status"] = "fallback"
+            self.transcript.metadata["speaker_error"] = type(exc).__name__
+            self.transcript.metadata["speaker_error_message"] = (
+                str(exc).strip()[:300]
+            )
             logger.exception("Failed to collect speaker segments")
         for service in (self.audio_capture, self.asr, self.speaker):
             try:
@@ -248,6 +264,18 @@ class MeetingRecorder:
             self.transcript.segments,
             speaker_segments,
         )
+        if not speaker_segments:
+            # Never leave a usable transcript as "Speaker Pending". Audio is
+            # not retained, so after a native diarization failure the only
+            # honest recoverable label is a single fallback speaker.
+            for segment in self.transcript.segments:
+                if not segment.speaker:
+                    segment.speaker = "Speaker_01"
+            if self.transcript.segments and not speaker_error:
+                self.transcript.metadata.setdefault(
+                    "speaker_status",
+                    "fallback",
+                )
         self._correct_transcript()
         self.transcript.finish()
         self._emit(RecorderEvent("status", "stopped"))

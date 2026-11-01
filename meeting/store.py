@@ -54,6 +54,8 @@ class MeetingStore:
                     duration_seconds REAL,
                     device_name TEXT,
                     speaker_count INTEGER,
+                    speaker_status TEXT,
+                    speaker_error TEXT,
                     correction_status TEXT,
                     correction_error TEXT,
                     json_path TEXT,
@@ -114,6 +116,14 @@ class MeetingStore:
             if "correction_error" not in columns:
                 connection.execute(
                     "ALTER TABLE meetings ADD COLUMN correction_error TEXT"
+                )
+            if "speaker_status" not in columns:
+                connection.execute(
+                    "ALTER TABLE meetings ADD COLUMN speaker_status TEXT"
+                )
+            if "speaker_error" not in columns:
+                connection.execute(
+                    "ALTER TABLE meetings ADD COLUMN speaker_error TEXT"
                 )
             connection.execute(
                 """
@@ -244,6 +254,7 @@ class MeetingStore:
                 UPDATE meetings
                 SET title = ?, status = 'completed', end_time = ?,
                     duration_seconds = ?, speaker_count = ?,
+                    speaker_status = ?, speaker_error = ?,
                     correction_status = ?, correction_error = ?,
                     json_path = ?, markdown_path = ?,
                     error_message = NULL, updated_at = CURRENT_TIMESTAMP
@@ -254,6 +265,9 @@ class MeetingStore:
                     end_time.isoformat(timespec="seconds"),
                     duration,
                     len(speakers),
+                    transcript.metadata.get("speaker_status"),
+                    transcript.metadata.get("speaker_error_message")
+                    or transcript.metadata.get("speaker_error"),
                     transcript.metadata.get("correction_status"),
                     transcript.metadata.get("correction_error_message")
                     or transcript.metadata.get("correction_error"),
@@ -328,8 +342,8 @@ class MeetingStore:
             rows = connection.execute(
                 """
                 SELECT meeting_id, title, status, start_time, end_time,
-                       duration_seconds, speaker_count, correction_status,
-                       error_message
+                       duration_seconds, speaker_count, speaker_status,
+                       speaker_error, correction_status, error_message
                 FROM meetings
                 ORDER BY start_time DESC
                 LIMIT ?

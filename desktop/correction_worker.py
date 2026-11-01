@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
@@ -38,27 +38,41 @@ class HistoricalCorrectionWorker(QObject):
     def _transcript(self) -> MeetingTranscript:
         start_time = datetime.fromisoformat(str(self.meeting["start_time"]))
         end_value = self.meeting.get("end_time")
+        source_segments = list(self.meeting.get("segments", []))
+        recovered_end = max(
+            (
+                float(segment.get("end_time") or 0.0)
+                for segment in source_segments
+            ),
+            default=0.0,
+        )
         return MeetingTranscript(
             meeting_id=str(self.meeting["meeting_id"]),
             start_time=start_time,
             end_time=(
                 datetime.fromisoformat(str(end_value))
-                if end_value else None
+                if end_value
+                else start_time + timedelta(seconds=recovered_end)
             ),
             metadata={
                 "correction_backend": "openai_compatible",
                 "correction_model": self.model,
                 "raw_audio_saved": False,
+                "speaker_status": (
+                    "recovered_single_speaker"
+                    if any(not item.get("speaker") for item in source_segments)
+                    else "preserved"
+                ),
             },
             segments=[
                 TranscriptSegment(
                     start_time=float(segment.get("start_time") or 0.0),
                     end_time=float(segment.get("end_time") or 0.0),
                     text=str(segment.get("raw_text") or ""),
-                    speaker=segment.get("speaker"),
+                    speaker=segment.get("speaker") or "Speaker_01",
                     is_final=True,
                 )
-                for segment in self.meeting.get("segments", [])
+                for segment in source_segments
             ],
         )
 
