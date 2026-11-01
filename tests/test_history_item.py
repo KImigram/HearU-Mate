@@ -17,6 +17,7 @@ class HistoryItemWidgetTests(unittest.TestCase):
 
     def test_three_dot_menu_emits_rename_and_delete_requests(self) -> None:
         widget = HistoryItemWidget("meeting-1", "产品周会")
+        self.assertEqual(widget.height(), 40)
         renamed = []
         deleted = []
         widget.rename_requested.connect(renamed.append)

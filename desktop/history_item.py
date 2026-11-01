@@ -26,7 +26,7 @@ class HistoryItemWidget(QWidget):
         self.meeting_id = meeting_id
         self._title = title
         self.setObjectName("historyItemWidget")
-        self.setMinimumHeight(34)
+        self.setFixedHeight(40)
 
         self.title_label = QLabel(title)
         self.title_label.setObjectName("historyItemTitle")

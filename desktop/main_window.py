@@ -6,7 +6,7 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QThread, QTimer, Qt
+from PySide6.QtCore import QSize, QThread, QTimer, Qt
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -149,15 +149,15 @@ class MainWindow(QMainWindow):
     def _build_home_page(self) -> QWidget:
         page = QWidget()
         outer = QVBoxLayout(page)
-        outer.setContentsMargins(54, 48, 54, 48)
+        outer.setContentsMargins(54, 30, 54, 30)
         outer.addStretch(1)
 
         card = QFrame()
         card.setObjectName("contentCard")
         card.setMaximumWidth(720)
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(40, 38, 40, 38)
-        card_layout.setSpacing(18)
+        card_layout.setContentsMargins(40, 30, 40, 30)
+        card_layout.setSpacing(13)
 
         title = QLabel("实时会议纪要")
         title.setObjectName("heroTitle")
@@ -199,12 +199,14 @@ class MainWindow(QMainWindow):
         )
         hint.setObjectName("hintBox")
         hint.setWordWrap(True)
+        hint.setMinimumHeight(58)
         self.mode_hint = QLabel(
             "本地语音与说话人模型会在开始纪要后由后台线程加载，"
             "首次启动可能需要数秒。"
         )
         self.mode_hint.setObjectName("devHint")
         self.mode_hint.setWordWrap(True)
+        self.mode_hint.setMinimumHeight(58)
         self.start_button = QPushButton("开始纪要")
         self.start_button.setObjectName("startButton")
         self.start_button.setMinimumHeight(48)
@@ -694,9 +696,7 @@ class MainWindow(QMainWindow):
             )
             self.history_tree.addTopLevelItem(group)
             for meeting in meetings:
-                child = QTreeWidgetItem(
-                    [meeting.get("title") or "未命名会议"]
-                )
+                child = QTreeWidgetItem([""])
                 child.setData(
                     0,
                     Qt.ItemDataRole.UserRole,
@@ -714,6 +714,7 @@ class MainWindow(QMainWindow):
                 )
                 row.rename_requested.connect(self.rename_history_meeting)
                 row.delete_requested.connect(self.delete_history_meeting)
+                child.setSizeHint(0, QSize(0, 42))
                 self.history_tree.setItemWidget(child, 0, row)
                 if meeting["meeting_id"] == self._current_meeting_id:
                     self.history_tree.setCurrentItem(child)
