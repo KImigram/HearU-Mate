@@ -43,6 +43,20 @@ class SubtitleOverlayTests(unittest.TestCase):
         self.assertEqual(closed, [True])
         self.assertFalse(overlay.isVisible())
 
+    def test_two_line_subtitle_expands_without_clipping(self) -> None:
+        overlay = SubtitleOverlay()
+        initial_height = overlay.height()
+        overlay.update_partial(
+            "这是一段足够长的实时字幕，用来验证第二行出现以后窗口会自动增加高度，"
+            "上下都保留完整的文字空间，而不会把文字压缩或裁掉。"
+        )
+        self.assertGreaterEqual(overlay.height(), initial_height)
+        self.assertGreaterEqual(
+            overlay.subtitle_label.maximumHeight(),
+            overlay.subtitle_label.fontMetrics().height() * 2,
+        )
+        overlay.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QPoint, Qt, Signal
-from PySide6.QtGui import QColor, QCloseEvent, QMouseEvent
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
+from PySide6.QtGui import QColor, QCloseEvent, QFontMetrics, QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -30,8 +30,8 @@ class SubtitleOverlay(QWidget):
             | Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setMinimumSize(560, 118)
-        self.resize(760, 128)
+        self.setMinimumSize(560, 156)
+        self.resize(760, 166)
         self._drag_offset: QPoint | None = None
 
         outer = QVBoxLayout(self)
@@ -65,7 +65,7 @@ class SubtitleOverlay(QWidget):
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
         self.subtitle_label.setWordWrap(True)
-        self.subtitle_label.setMinimumHeight(48)
+        self.subtitle_label.setMinimumHeight(66)
 
         card_layout.addLayout(header)
         card_layout.addWidget(self.subtitle_label, 1)
@@ -119,7 +119,27 @@ class SubtitleOverlay(QWidget):
     def _fit_text(self) -> None:
         length = len(self.subtitle_label.text())
         point_size = 19 if length <= 38 else 17 if length <= 76 else 14
-        self.subtitle_label.setFont(transcript_font(point_size))
+        font = transcript_font(point_size)
+        self.subtitle_label.setFont(font)
+
+        # Reserve the actual wrapped line height instead of squeezing a
+        # second line into a fixed 128 px window. Grow upward so subtitles
+        # positioned near the bottom of the screen stay fully visible.
+        text_width = max(360, self.width() - 100)
+        bounds = QFontMetrics(font).boundingRect(
+            QRect(0, 0, text_width, 2000),
+            int(Qt.TextFlag.TextWordWrap | Qt.TextFlag.TextExpandTabs),
+            self.subtitle_label.text(),
+        )
+        label_height = max(66, min(bounds.height() + 14, 154))
+        target_height = max(166, min(label_height + 98, 252))
+        old_bottom = self.geometry().bottom()
+        self.subtitle_label.setMinimumHeight(label_height)
+        self.subtitle_label.setMaximumHeight(label_height)
+        if self.height() != target_height:
+            self.resize(self.width(), target_height)
+            if self.isVisible():
+                self.move(self.x(), old_bottom - target_height + 1)
 
     def eventFilter(self, watched, event) -> bool:
         if event.type() == QEvent.Type.MouseButtonPress:
