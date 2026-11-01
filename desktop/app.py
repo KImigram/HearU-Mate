@@ -8,7 +8,11 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication
 
 from meeting.windows_com import preload_soundcard
-from meeting.runtime_paths import RuntimePaths, get_runtime_paths
+from meeting.runtime_paths import (
+    RuntimePaths,
+    get_runtime_paths,
+    missing_runtime_files,
+)
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -54,6 +58,13 @@ def main() -> int:
     # crash cannot terminate the desktop UI. Required by frozen Windows apps.
     multiprocessing.freeze_support()
     paths = get_runtime_paths()
+    if "--self-check" in sys.argv:
+        missing = missing_runtime_files(paths)
+        if missing:
+            for path in missing:
+                print(f"MISSING: {path}", file=sys.stderr)
+            return 2
+        return 0
     paths.data_dir.mkdir(parents=True, exist_ok=True)
     paths.settings_dir.mkdir(parents=True, exist_ok=True)
     load_project_environment(paths.settings_dir)

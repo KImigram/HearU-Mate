@@ -8,6 +8,18 @@ import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DEVELOPMENT_MODELS = Path("D:/models/sherpa-onnx")
+REQUIRED_MODEL_FILES = (
+    "silero-vad/silero_vad.onnx",
+    "paraformer-streaming-int8/encoder.int8.onnx",
+    "paraformer-streaming-int8/decoder.int8.onnx",
+    "paraformer-streaming-int8/tokens.txt",
+    "speaker-diarization/pyannote-segmentation/model.int8.onnx",
+    "speaker-diarization/3dspeaker-eres2net.onnx",
+    (
+        "speaker-diarization/"
+        "wespeaker-cnceleb-resnet34-LM-sherpa.onnx"
+    ),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,3 +80,13 @@ def get_runtime_paths() -> RuntimePaths:
         data_dir=data_dir.resolve(),
         settings_dir=settings_dir.resolve(),
     )
+
+
+def missing_runtime_files(paths: RuntimePaths) -> list[Path]:
+    required = [
+        paths.resource_root / "desktop" / "styles.qss",
+        paths.resource_root / "assets" / "check.svg",
+        paths.resource_root / "assets" / "down_arrow.svg",
+    ]
+    required.extend(paths.models_root / item for item in REQUIRED_MODEL_FILES)
+    return [path for path in required if not path.is_file()]

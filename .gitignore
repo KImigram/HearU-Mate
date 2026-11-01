@@ -37,5 +37,7 @@ data/meetings/*
 *.log
 build/
 dist/
+release/
 *.spec
+!packaging/*.spec
 

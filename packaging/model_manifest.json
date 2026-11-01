@@ -1,0 +1,37 @@
+[
+  {
+    "source": "silero-vad/silero_vad.onnx",
+    "destination": "silero-vad/silero_vad.onnx",
+    "sha256": "9E2449E1087496D8D4CABA907F23E0BD3F78D91FA552479BB9C23AC09CBB1FD6"
+  },
+  {
+    "source": "paraformer-streaming-int8/encoder.int8.onnx",
+    "destination": "paraformer-streaming-int8/encoder.int8.onnx",
+    "sha256": "81A70226A8934E6ED92AA1D4FC486B428B5398E2F2619ED4897B7294CAB90E9A"
+  },
+  {
+    "source": "paraformer-streaming-int8/decoder.int8.onnx",
+    "destination": "paraformer-streaming-int8/decoder.int8.onnx",
+    "sha256": "F3CCA9F77BB9D93C8FCBFB63AE617B6B1EE96818DF3AA3B151C40658FE38594F"
+  },
+  {
+    "source": "paraformer-streaming-int8/tokens.txt",
+    "destination": "paraformer-streaming-int8/tokens.txt",
+    "sha256": "59ABA8873A2ED1E122C25FEE421E25F283B63290EFBDE85C1F01A853D83CB6E6"
+  },
+  {
+    "source": "speaker-diarization/pyannote-segmentation/model.int8.onnx",
+    "destination": "speaker-diarization/pyannote-segmentation/model.int8.onnx",
+    "sha256": "D582F4B4C6B48205DE7E0643C57DF0DF5615A3C176189BE3FC461E9D18827B5D"
+  },
+  {
+    "source": "speaker-diarization/3dspeaker-eres2net.onnx",
+    "destination": "speaker-diarization/3dspeaker-eres2net.onnx",
+    "sha256": "1A331345F04805BADBB495C775A6DDFFCDD1A732567D5EC8B3D5749E3C7A5E4B"
+  },
+  {
+    "source": "speaker-diarization/wespeaker-cnceleb-resnet34-LM-sherpa.onnx",
+    "destination": "speaker-diarization/wespeaker-cnceleb-resnet34-LM-sherpa.onnx",
+    "sha256": "8D8ED5770E08001942B8E9922319529F800B5C1BBE8A59524A113D0ACE0D2A17"
+  }
+]

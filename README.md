@@ -77,6 +77,15 @@ ASR、时间对齐或历史记录格式。模型仍在开始会议后延迟加�
 点击“开始纪要”会加载本地模型并捕获所选 Windows 输出设备。结束后依次执行
 说话人区分、可选 AI 校对和保存，结果写入 data\meetings，历史列表会刷新。
 
+## Windows 安装包
+
+安装版改造仅维护在 `packaging/windows-installer` 分支。它使用 PyInstaller
+onedir 生成桌面程序，再由 Inno Setup 把运行文件和所需本地模型压缩为一个
+安装程序 EXE。安装后模型位于安装目录的 `models`，用户会议、数据库和
+API `.env` 位于 `%LOCALAPPDATA%\HearU Mate`，卸载时默认保留用户数据。
+
+构建命令和目录说明见 `packaging/README.md`。
+
 ## 测试
 
     & "D:\apps\anaconda\envs\meeting_onnx\python.exe" -m unittest discover -s tests -v
