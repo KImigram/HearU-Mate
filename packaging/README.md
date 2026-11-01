@@ -31,10 +31,18 @@ Build from PowerShell:
 & .\packaging\build.ps1 -Version 0.1.0
 ```
 
+The installer step requires Inno Setup 7 (recommended) or Inno Setup 6. The
+build script also recognizes a portable compiler at
+`build\tools\Inno Setup 7\ISCC.exe`.
+
 The script refuses to run outside the packaging branch, verifies every model
 SHA-256, builds the app, copies only required models, and runs a frozen
 `--self-check` before creating the installer. The final file is written to
 `release\HearU-Mate-Setup-<version>.exe`.
+
+The generated installer is not code-signed unless a signing certificate is
+configured separately. Windows SmartScreen can therefore warn on a newly
+distributed build even when its SHA-256 is published.
 
 Uninstalling removes application files and bundled models. It intentionally
 keeps `%LOCALAPPDATA%\HearU Mate`, including meetings and the API configuration.

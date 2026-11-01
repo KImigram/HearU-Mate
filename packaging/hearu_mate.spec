@@ -34,7 +34,7 @@ for distribution in (
         pass
 
 a = Analysis(
-    [str(project_root / "desktop" / "app.py")],
+    [str(project_root / "packaging" / "entrypoint.py")],
     pathex=[str(project_root)],
     binaries=binaries,
     datas=datas,
@@ -53,6 +53,16 @@ a = Analysis(
     ],
     noarchive=False,
     optimize=1,
+)
+
+# The Codex host PATH contains Poppler's ICU 78 DLLs. PyInstaller may resolve
+# Qt6Core's generic `icuuc.dll` import to that incompatible copy and bundle it,
+# which shadows the Windows ICU DLL and causes WinError 127 at startup.
+incompatible_host_icu = {"icuuc.dll", "icudt78.dll"}
+a.binaries = type(a.binaries)(
+    item
+    for item in a.binaries
+    if Path(item[0]).name.lower() not in incompatible_host_icu
 )
 
 pyz = PYZ(a.pure)

@@ -88,18 +88,25 @@ if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
 $check = Start-Process -FilePath $exe -ArgumentList "--self-check" `
     -WindowStyle Hidden -Wait -PassThru
 if ($check.ExitCode -ne 0) {
+    $selfCheckLog = Join-Path $appDist "self-check-error.log"
+    if (Test-Path -LiteralPath $selfCheckLog -PathType Leaf) {
+        Write-Host (Get-Content -LiteralPath $selfCheckLog -Raw)
+    }
     throw "Packaged self-check failed with exit code $($check.ExitCode)"
 }
 
 if (-not $SkipInstaller) {
     $isccCandidates = @(
         (Get-Command iscc.exe -ErrorAction SilentlyContinue).Source,
+        (Join-Path $projectRoot "build\tools\Inno Setup 7\ISCC.exe"),
+        "C:\Program Files\Inno Setup 7\ISCC.exe",
+        (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 7\ISCC.exe"),
         "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
         "C:\Program Files\Inno Setup 6\ISCC.exe",
         (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe")
     ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) }
     if (-not $isccCandidates) {
-        throw "Inno Setup 6 was not found. Install it or use -SkipInstaller."
+        throw "Inno Setup compiler was not found. Install Inno Setup 7/6 or use -SkipInstaller."
     }
     $releaseDir = Join-Path $projectRoot "release"
     New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
