@@ -51,16 +51,26 @@ class MainWindow(QMainWindow):
         project_root: str | Path,
         *,
         simulation_mode: bool = False,
+        data_dir: str | Path | None = None,
+        models_root: str | Path | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self.project_root = Path(project_root).resolve()
+        self.data_dir = (
+            Path(data_dir).resolve()
+            if data_dir is not None
+            else self.project_root / "data" / "meetings"
+        )
+        self.models_root = (
+            Path(models_root).resolve()
+            if models_root is not None
+            else Path("D:/models/sherpa-onnx")
+        )
         load_project_environment(self.project_root)
         self.simulation_mode = simulation_mode
         self.models_enabled = not simulation_mode
-        self.store = MeetingStore(
-            self.project_root / "data" / "meetings" / "meeting_history.db"
-        )
+        self.store = MeetingStore(self.data_dir / "meeting_history.db")
         self.runtime_settings = SettingsDialog.load()
         self._thread: QThread | None = None
         self._worker: RecorderWorker | None = None
@@ -520,7 +530,12 @@ class MainWindow(QMainWindow):
             models_enabled=self.models_enabled,
         )
         thread = QThread(self)
-        worker = RecorderWorker(options, self.project_root)
+        worker = RecorderWorker(
+            options,
+            self.project_root,
+            data_dir=self.data_dir,
+            models_root=self.models_root,
+        )
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.partial.connect(self._on_partial)

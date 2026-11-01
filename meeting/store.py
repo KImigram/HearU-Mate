@@ -8,9 +8,10 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
+from .runtime_paths import get_runtime_paths
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "meetings" / "meeting_history.db"
+
+DEFAULT_DB_PATH = get_runtime_paths().data_dir / "meeting_history.db"
 
 
 class MeetingStore:

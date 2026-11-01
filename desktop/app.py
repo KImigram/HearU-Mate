@@ -8,6 +8,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication
 
 from meeting.windows_com import preload_soundcard
+from meeting.runtime_paths import RuntimePaths, get_runtime_paths
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -18,10 +19,8 @@ else:
     from .env_store import load_project_environment
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-
-def create_app() -> QApplication:
+def create_app(paths: RuntimePaths | None = None) -> QApplication:
+    paths = paths or get_runtime_paths()
     # The Qt GUI thread must remain STA: QApplication's Windows backend calls
     # OleInitialize. SoundCard 0.4.6 requests MTA during its first import, so
     # importing it first would make Qt report RPC_E_CHANGED_MODE (0x80010106).
@@ -36,9 +35,9 @@ def create_app() -> QApplication:
     app_font.setPointSize(10)
     app_font.setWeight(QFont.Weight.Normal)
     app.setFont(app_font)
-    style_path = Path(__file__).with_name("styles.qss")
-    check_icon = PROJECT_ROOT / "assets" / "check.svg"
-    down_arrow_icon = PROJECT_ROOT / "assets" / "down_arrow.svg"
+    style_path = paths.resource_root / "desktop" / "styles.qss"
+    check_icon = paths.resource_root / "assets" / "check.svg"
+    down_arrow_icon = paths.resource_root / "assets" / "down_arrow.svg"
     style = style_path.read_text(encoding="utf-8").replace(
         "__CHECK_ICON__",
         f'url("{check_icon.as_posix()}")',
@@ -54,9 +53,17 @@ def main() -> int:
     # Speaker diarization runs in a spawned process so a native sherpa-onnx
     # crash cannot terminate the desktop UI. Required by frozen Windows apps.
     multiprocessing.freeze_support()
-    load_project_environment(PROJECT_ROOT)
-    app = create_app()
-    window = MainWindow(PROJECT_ROOT, simulation_mode=False)
+    paths = get_runtime_paths()
+    paths.data_dir.mkdir(parents=True, exist_ok=True)
+    paths.settings_dir.mkdir(parents=True, exist_ok=True)
+    load_project_environment(paths.settings_dir)
+    app = create_app(paths)
+    window = MainWindow(
+        paths.settings_dir,
+        simulation_mode=False,
+        data_dir=paths.data_dir,
+        models_root=paths.models_root,
+    )
     window.show()
     return app.exec()
 

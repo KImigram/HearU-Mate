@@ -50,10 +50,23 @@ class RecorderWorker(QObject):
         options: RecorderOptions,
         project_root: str | Path,
         parent=None,
+        *,
+        data_dir: str | Path | None = None,
+        models_root: str | Path | None = None,
     ) -> None:
         super().__init__(parent)
         self.options = options
         self.project_root = Path(project_root).resolve()
+        self.data_dir = (
+            Path(data_dir).resolve()
+            if data_dir is not None
+            else self.project_root / "data" / "meetings"
+        )
+        self.models_root = (
+            Path(models_root).resolve()
+            if models_root is not None
+            else Path("D:/models/sherpa-onnx")
+        )
         self._stop_event = threading.Event()
         self._recorder: MeetingRecorder | None = None
         self._meeting_id: str | None = None
@@ -106,6 +119,7 @@ class RecorderWorker(QObject):
 
     def _new_config(self) -> MeetingConfig:
         config = MeetingConfig()
+        config.use_model_root(self.models_root)
         config.audio.device_id = self.options.device_id
         config.speaker.num_speakers = self.options.expected_speakers
         config.speaker.select_embedding_profile(
@@ -114,13 +128,11 @@ class RecorderWorker(QObject):
         config.correction.enabled = self.options.correction_enabled
         config.correction.base_url = self.options.base_url
         config.correction.model = self.options.model
-        config.output.root_dir = str(self.project_root / "data" / "meetings")
+        config.output.root_dir = str(self.data_dir)
         return config
 
     def _store(self) -> MeetingStore:
-        return MeetingStore(
-            self.project_root / "data" / "meetings" / "meeting_history.db"
-        )
+        return MeetingStore(self.data_dir / "meeting_history.db")
 
     def _run_real_recorder(self) -> str:
         config = self._new_config()

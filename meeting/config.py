@@ -5,6 +5,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .runtime_paths import DEFAULT_DEVELOPMENT_MODELS
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -12,23 +14,20 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 @dataclass(frozen=True, slots=True)
 class SpeakerEmbeddingProfile:
     label: str
-    model_path: str
+    relative_path: str
     clustering_threshold: float
 
 
 SPEAKER_EMBEDDING_PROFILES = {
     "3dspeaker_eres2net": SpeakerEmbeddingProfile(
         label="3D-Speaker ERes2Net（原模型）",
-        model_path=(
-            "D:/models/sherpa-onnx/speaker-diarization/"
-            "3dspeaker-eres2net.onnx"
-        ),
+        relative_path="speaker-diarization/3dspeaker-eres2net.onnx",
         clustering_threshold=0.85,
     ),
     "wespeaker_cnceleb_resnet34_lm": SpeakerEmbeddingProfile(
         label="WeSpeaker 中文 ResNet34-LM（新模型）",
-        model_path=(
-            "D:/models/sherpa-onnx/speaker-diarization/"
+        relative_path=(
+            "speaker-diarization/"
             "wespeaker-cnceleb-resnet34-LM-sherpa.onnx"
         ),
         clustering_threshold=0.85,
@@ -90,7 +89,11 @@ class SpeakerConfig:
     min_duration_on: float = 0.3
     min_duration_off: float = 0.5
 
-    def select_embedding_profile(self, profile_name: str) -> None:
+    def select_embedding_profile(
+        self,
+        profile_name: str,
+        models_root: str | Path = DEFAULT_DEVELOPMENT_MODELS,
+    ) -> None:
         try:
             profile = SPEAKER_EMBEDDING_PROFILES[profile_name]
         except KeyError as exc:
@@ -99,7 +102,9 @@ class SpeakerConfig:
                 f"未知说话人模型 {profile_name!r}；可选值：{supported}"
             ) from exc
         self.embedding_profile = profile_name
-        self.embedding_model = profile.model_path
+        self.embedding_model = str(
+            Path(models_root).resolve() / profile.relative_path
+        )
         self.clustering_threshold = profile.clustering_threshold
 
 
@@ -140,6 +145,21 @@ class MeetingConfig:
     output: OutputConfig = field(default_factory=OutputConfig)
     readability: ReadabilityConfig = field(default_factory=ReadabilityConfig)
     correction: CorrectionConfig = field(default_factory=CorrectionConfig)
+
+    def use_model_root(self, models_root: str | Path) -> None:
+        root = Path(models_root).expanduser().resolve()
+        self.vad.model = str(root / "silero-vad" / "silero_vad.onnx")
+        self.asr.model_dir = str(root / "paraformer-streaming-int8")
+        self.speaker.segmentation_model = str(
+            root
+            / "speaker-diarization"
+            / "pyannote-segmentation"
+            / "model.int8.onnx"
+        )
+        self.speaker.select_embedding_profile(
+            self.speaker.embedding_profile,
+            root,
+        )
 
     @classmethod
     def load(cls, path: str | Path | None = None) -> "MeetingConfig":

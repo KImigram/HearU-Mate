@@ -77,6 +77,42 @@ class WorkerTests(unittest.TestCase):
             self.assertEqual(meeting["status"], "completed")
             self.assertEqual(len(meeting["segments"]), 2)
 
+    def test_installed_paths_are_applied_to_models_and_data(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as folder:
+            root = Path(folder)
+            data_dir = root / "local-data"
+            models_root = root / "installed-models"
+            options = RecorderOptions(
+                device_id=None,
+                device_name="测试设备",
+                expected_speakers=1,
+                correction_enabled=False,
+                base_url="https://api.deepseek.com",
+                model="deepseek-flash",
+                simulation=True,
+                models_enabled=False,
+            )
+            worker = RecorderWorker(
+                options,
+                root,
+                data_dir=data_dir,
+                models_root=models_root,
+            )
+            config = worker._new_config()
+            self.assertEqual(Path(config.output.root_dir), data_dir)
+            self.assertEqual(
+                Path(config.asr.model_dir),
+                models_root / "paraformer-streaming-int8",
+            )
+            self.assertEqual(
+                Path(config.vad.model),
+                models_root / "silero-vad" / "silero_vad.onnx",
+            )
+            self.assertEqual(
+                worker._store().db_path,
+                (data_dir / "meeting_history.db").resolve(),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

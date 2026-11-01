@@ -31,7 +31,11 @@ class CoreTests(unittest.TestCase):
             config.embedding_profile,
             "wespeaker_cnceleb_resnet34_lm",
         )
-        self.assertEqual(config.embedding_model, profile.model_path)
+        self.assertTrue(
+            config.embedding_model.replace("\\", "/").endswith(
+                profile.relative_path
+            )
+        )
         self.assertEqual(
             config.clustering_threshold,
             profile.clustering_threshold,
