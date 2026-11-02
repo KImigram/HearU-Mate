@@ -20,13 +20,8 @@ class SpeakerEmbeddingProfile:
 
 
 SPEAKER_EMBEDDING_PROFILES = {
-    "3dspeaker_eres2net": SpeakerEmbeddingProfile(
-        label="3D-Speaker ERes2Net（原模型）",
-        relative_path="speaker-diarization/3dspeaker-eres2net.onnx",
-        clustering_threshold=0.85,
-    ),
     "wespeaker_cnceleb_resnet34_lm": SpeakerEmbeddingProfile(
-        label="WeSpeaker 中文 ResNet34-LM（新模型）",
+        label="WeSpeaker 中文 ResNet34-LM",
         relative_path=(
             "speaker-diarization/"
             "wespeaker-cnceleb-resnet34-LM-sherpa.onnx"
@@ -77,12 +72,12 @@ class ASRConfig:
 @dataclass(slots=True)
 class SpeakerConfig:
     backend: str = "sherpa_onnx_offline"
-    embedding_profile: str = "3dspeaker_eres2net"
+    embedding_profile: str = "wespeaker_cnceleb_resnet34_lm"
     segmentation_model: str = field(default_factory=lambda: _installed_model_path(
         "speaker-diarization/pyannote-segmentation/model.int8.onnx"
     ))
     embedding_model: str = field(default_factory=lambda: _installed_model_path(
-        "speaker-diarization/3dspeaker-eres2net.onnx"
+        "speaker-diarization/wespeaker-cnceleb-resnet34-LM-sherpa.onnx"
     ))
     num_threads: int = 2
     num_speakers: int = -1

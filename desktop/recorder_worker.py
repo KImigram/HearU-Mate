@@ -32,7 +32,7 @@ class RecorderOptions:
     simulation: bool = False
     models_enabled: bool = True
     simulation_delay: float = 0.12
-    speaker_embedding_profile: str = "3dspeaker_eres2net"
+    speaker_embedding_profile: str = "wespeaker_cnceleb_resnet34_lm"
 
 
 class RecorderWorker(QObject):

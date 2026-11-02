@@ -23,6 +23,14 @@ class CoreTests(unittest.TestCase):
 
     def test_speaker_embedding_profiles_switch_without_loading_models(self) -> None:
         config = MeetingConfig().speaker
+        self.assertEqual(
+            set(SPEAKER_EMBEDDING_PROFILES),
+            {"wespeaker_cnceleb_resnet34_lm"},
+        )
+        self.assertEqual(
+            config.embedding_profile,
+            "wespeaker_cnceleb_resnet34_lm",
+        )
         config.select_embedding_profile("wespeaker_cnceleb_resnet34_lm")
         profile = SPEAKER_EMBEDDING_PROFILES[
             "wespeaker_cnceleb_resnet34_lm"

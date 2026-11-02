@@ -12,7 +12,6 @@ REQUIRED_MODEL_FILES = (
     "paraformer-streaming-int8/decoder.int8.onnx",
     "paraformer-streaming-int8/tokens.txt",
     "speaker-diarization/pyannote-segmentation/model.int8.onnx",
-    "speaker-diarization/3dspeaker-eres2net.onnx",
     (
         "speaker-diarization/"
         "wespeaker-cnceleb-resnet34-LM-sherpa.onnx"
