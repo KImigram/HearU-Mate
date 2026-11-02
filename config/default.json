@@ -29,9 +29,9 @@
   },
   "speaker": {
     "backend": "sherpa_onnx_offline",
-    "embedding_profile": "3dspeaker_eres2net",
+    "embedding_profile": "wespeaker_cnceleb_resnet34_lm",
     "segmentation_model": "D:/models/sherpa-onnx/speaker-diarization/pyannote-segmentation/model.int8.onnx",
-    "embedding_model": "D:/models/sherpa-onnx/speaker-diarization/3dspeaker-eres2net.onnx",
+    "embedding_model": "D:/models/sherpa-onnx/speaker-diarization/wespeaker-cnceleb-resnet34-LM-sherpa.onnx",
     "num_threads": 2,
     "num_speakers": -1,
     "clustering_threshold": 0.85,

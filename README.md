@@ -23,8 +23,7 @@ SSE 或本地 HTTP 服务，也不依赖 DocAgent 的 Agent、视觉、订单与
   到 SQLite，并可随 Markdown 一并导出。
 - 首次启动 API Key 强提醒、项目 .env 持久化和设置页更换。
 - 从 DocAgent 独立迁移的音频、VAD、ASR、说话人、对齐、校对和存储核心。
-- 开始会议前可选择 3D-Speaker ERes2Net 或 WeSpeaker 中文
-  ResNet34-LM 声纹后端；两者复用同一套 sherpa-onnx 说话人分区接口。
+- 使用 WeSpeaker 中文 ResNet34-LM 声纹模型进行会后说话人区分。
 
 当前入口已切换为真实本地链路。启动后异步枚举 Windows WASAPI Loopback
 输出设备；点击“开始纪要”后，工作线程依次加载 Silero VAD、Paraformer
@@ -54,19 +53,16 @@ GUI 与录音线程之间只传递设备 ID 和名称，不共享 SoundCard COM 
 requirements.txt 只声明运行库，不包含或下载任何模型。模型文件由用户单独
 维护在 D:\models\sherpa-onnx。
 
-当前说话人声纹模型：
+当前说话人声纹模型为 WeSpeaker CN-Celeb ResNet34-LM：
 
-- 3D-Speaker ERes2Net：
-  `speaker-diarization/3dspeaker-eres2net.onnx`（保留为默认后端）。
-- WeSpeaker CN-Celeb ResNet34-LM：
-  来源于官方 `Wespeaker/wespeaker-cnceleb-resnet34-LM`，程序使用
+- 模型来源于官方 `Wespeaker/wespeaker-cnceleb-resnet34-LM`，程序使用
   保留相同权重、按 sherpa-onnx 官方字段补充元数据的
   `speaker-diarization/wespeaker-cnceleb-resnet34-LM-sherpa.onnx`，
   SHA-256 为
   `8d8ed5770e08001942b8e9922319529f800b5c1bbe8a59524a113d0ace0d2a17`。
 
-模型选择只改变声纹提取模型及其聚类配置，不改变 pyannote segmentation、
-ASR、时间对齐或历史记录格式。模型仍在开始会议后延迟加载。
+声纹模型不改变 pyannote segmentation、ASR、时间对齐或历史记录格式，
+并且仍在开始会议后延迟加载。
 
 ## 开发模式启动
 
