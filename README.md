@@ -51,7 +51,7 @@ HearU Mate 使用三类本地语音能力。其中“说话人区分”由分段
 | 说话人分段 | pyannote segmentation 3.0 INT8 ONNX | [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)、[sherpa-onnx 模型发布](https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-segmentation-models) | MIT |
 | 说话人声纹 | WeSpeaker CN-Celeb ResNet34-LM ONNX | [Wespeaker/wespeaker-cnceleb-resnet34-LM](https://huggingface.co/Wespeaker/wespeaker-cnceleb-resnet34-LM) | Apache-2.0 |
 
-仓库不包含、也不会自动下载模型。开发版默认从以下目录读取：
+模型需由使用者自行准备。开发版默认从以下目录读取：
 
 ```text
 D:\models\sherpa-onnx\
@@ -114,12 +114,9 @@ API 地址：https://api.siliconflow.cn/v1
 
 - VAD、ASR 和说话人分析均在用户电脑本地运行。
 - 默认不保存原始音频。
-- 录制期间的分析音频存放在系统临时文件中，结束或失败后释放。
-- Final 片段实时写入 SQLite，异常退出时已完成的片段仍可恢复查看。
 - 只有启用 AI 校对或 AI 摘要时，会议文字才会发送给用户配置的 API 服务；
   原始音频不会发送给该服务。
-- API Key 保存在本地 `.env`，并被 `.gitignore` 排除。
-- `.env`、会议数据、数据库、音视频、模型和构建产物不会被提交到 Git。
+- API Key 和会议记录保存在用户本地。
 
 请在录制或转写他人内容前遵守所在地法律、平台规则，并取得必要同意。
 
@@ -133,12 +130,6 @@ API 地址：https://api.siliconflow.cn/v1
 ```powershell
 python -m unittest discover -s tests -v
 ```
-
-分支约定：
-
-- `main`：源码开发分支，使用开发模型目录和项目内会议数据。
-- `packaging/windows-installer`：Windows 安装版构建分支，使用安装目录模型和
-  `%LOCALAPPDATA%\HearU Mate` 用户数据目录。
 
 ## 已知限制
 
@@ -156,15 +147,15 @@ MeetingRecorderDesktop/
 ├── desktop/       # PySide6 GUI 与工作线程
 ├── assets/        # 图标与界面资源
 ├── config/        # 开发配置示例
-├── data/meetings/ # 本地会议数据（Git 忽略）
+├── data/meetings/ # 本地会议数据
 ├── tests/         # 不加载真实模型的单元测试
 └── packaging/     # Windows 安装版构建文件（安装分支）
 ```
 
 ## 许可证
 
-项目源码采用 [Apache License 2.0](LICENSE)。第三方库和模型继续受各自许可证
+项目源码采用 [Mozilla Public License 2.0](LICENSE)。第三方库和模型继续受各自许可证
 约束，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-Apache-2.0 允许个人和企业使用、修改、分发及商业化本项目，但必须遵守许可证
-中的版权、许可声明和修改说明要求。
+MPL-2.0 允许使用、修改、分发和商业化；公开分发修改版时，受 MPL 覆盖的
+源码文件及其修改仍需按照 MPL-2.0 提供。

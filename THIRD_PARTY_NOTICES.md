@@ -1,6 +1,6 @@
 # Third-party notices
 
-HearU Mate is licensed under Apache License 2.0. Third-party libraries and
+HearU Mate is licensed under Mozilla Public License 2.0. Third-party libraries and
 model files remain subject to their own licenses. This document is attribution
 information and does not replace those license texts.
 
