@@ -1,68 +1,75 @@
 # HearU Mate（听会儿）
 
-独立的 Windows 桌面会议纪要应用，英文品牌名为 HearU Mate，中文名为
-“听会儿”。项目使用 PySide6，不包含 Web、Flask、
-SSE 或本地 HTTP 服务，也不依赖 DocAgent 的 Agent、视觉、订单与评测模块。
+<p align="center">
+  <img src="assets/hearu_mate_icon.png" width="128" alt="HearU Mate icon">
+</p>
 
-## 当前开发阶段
+<p align="center">
+  本地优先的 Windows 实时转写助手，适用于会议、课程以及本地播放的音视频。
+</p>
 
-第一轮已完成：
+<p align="center">
+  Local-first Windows transcription for meetings, lectures, and locally played media.
+</p>
 
-- PySide6 主窗口、浅色桌面布局、历史会议侧栏和设置页。
-- QThread 录制工作线程，以及 partial、final、status、completed、error 信号链。
-- Partial 在同一个列表项中增长，Final 后固定并创建下一段。
-- 录制页可开启始终置顶的实时悬浮字幕；窗口支持拖动和独立关闭，
-  Partial 在当前句内增长，Final 保留到下一句开始时再替换。
-- SQLite 历史会议、原始文本与校对文本分离保存。
-- JSON 和 Markdown 输出。
-- 会后可为 Speaker 标签设置姓名；原始标签保留在 JSON，Markdown 使用姓名
-  重新生成。
-- 历史会议提供三点操作菜单，可重命名会议；删除操作需要二次确认，并级联
-  清理 SQLite 片段、摘要、说话人命名及对应 JSON/Markdown 文件。
-- 历史会议可使用同一套 OpenAI-compatible API 生成结构化 AI 摘要，摘要持久化
-  到 SQLite，并可随 Markdown 一并导出。
-- 首次启动 API Key 强提醒、项目 .env 持久化和设置页更换。
-- 从 DocAgent 独立迁移的音频、VAD、ASR、说话人、对齐、校对和存储核心。
-- 使用 WeSpeaker 中文 ResNet34-LM 声纹模型进行会后说话人区分。
+> 当前仓库提供源码开发版本，暂不发布预编译安装包。Windows 安装包计划在
+> 功能进一步稳定后的 `0.2.0` 或 `1.0.0` 版本发布。
 
-当前入口已切换为真实本地链路。启动后异步枚举 Windows WASAPI Loopback
-输出设备；点击“开始纪要”后，工作线程依次加载 Silero VAD、Paraformer
-Streaming 和说话人模型，再打开所选输出设备进行实时识别。GUI 主线程不执行
-录音、推理、说话人区分或会后校对。
+## 界面预览
 
-### Windows COM 与 SoundCard
+<!-- 截图位置 1：将主界面截图保存为 docs/images/home.png 后取消下一行注释。 -->
+<!-- ![新建转写](docs/images/home.png) -->
 
-SoundCard 0.4.6 在首次导入时创建模块级 COM helper。应用会先创建
-QApplication，让 GUI 主线程保持 STA，再于同一主线程预加载 SoundCard；
-设备枚举线程和录音
-线程仍各自调用 CoInitializeEx，并在同一线程内配对 CoUninitialize。录音线程
-会保持 COM 有效直到 recorder context、音频设备和模型服务全部释放。
-RPC_E_CHANGED_MODE 表示线程已有其他 apartment mode，此时不会重复释放。
-GUI 与录音线程之间只传递设备 ID 和名称，不共享 SoundCard COM 对象。
+<!-- 截图位置 2：将实时转写截图保存为 docs/images/live-transcription.png。 -->
+<!-- ![实时转写与悬浮字幕](docs/images/live-transcription.png) -->
 
-## 环境
+<!-- 截图位置 3：将历史纪要截图保存为 docs/images/history-summary.png。 -->
+<!-- ![历史纪要与 AI 摘要](docs/images/history-summary.png) -->
 
-使用现有 Conda 环境：
+## 功能
 
-    conda activate D:\apps\anaconda\envs\meeting_onnx
+- Windows WASAPI Loopback 系统音频采集，不需要虚拟声卡或本地 HTTP 服务。
+- Paraformer Streaming 中英双语实时识别，支持 Partial/Final 流式显示。
+- 可拖动、始终置顶的实时悬浮字幕。
+- 会后说话人区分、时间对齐和说话人自定义命名。
+- OpenAI-compatible 会后文本校对和结构化会议摘要。
+- 可接入 DeepSeek、硅基流动及其他兼容 Chat Completions 的服务。
+- 原始文本与 AI 校对文本分离保存；API 失败时保留原始转写。
+- SQLite 历史记录，以及 JSON、Markdown 导出。
+- 会议重命名、二次确认删除和 Markdown 导出。
+- 长会议音频写入临时文件，Final 片段实时检查点保存，降低异常退出损失。
 
-若 conda activate 在当前终端不可用，可直接使用环境中的 Python：
+## 本地模型
 
-    & "D:\apps\anaconda\envs\meeting_onnx\python.exe" -m pip install -r requirements.txt
+HearU Mate 使用三类本地语音能力。其中“说话人区分”由分段模型和声纹模型
+共同完成。
 
-requirements.txt 只声明运行库，不包含或下载任何模型。模型文件由用户单独
-维护在 D:\models\sherpa-onnx。
+| 能力 | 模型 | 来源 | 许可证 |
+| --- | --- | --- | --- |
+| 语音活动检测 | Silero VAD ONNX | [Silero VAD](https://github.com/snakers4/silero-vad)、[sherpa-onnx 模型发布](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models) | MIT |
+| 中英双语 ASR | Streaming Paraformer INT8 ONNX | [ModelScope Paraformer](https://modelscope.cn/models/iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online)、[sherpa-onnx 模型发布](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models) | Apache-2.0 |
+| 说话人分段 | pyannote segmentation 3.0 INT8 ONNX | [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)、[sherpa-onnx 模型发布](https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-segmentation-models) | MIT |
+| 说话人声纹 | WeSpeaker CN-Celeb ResNet34-LM ONNX | [Wespeaker/wespeaker-cnceleb-resnet34-LM](https://huggingface.co/Wespeaker/wespeaker-cnceleb-resnet34-LM) | Apache-2.0 |
 
-当前说话人声纹模型为 WeSpeaker CN-Celeb ResNet34-LM：
+仓库不包含、也不会自动下载模型。开发版默认从以下目录读取：
 
-- 模型来源于官方 `Wespeaker/wespeaker-cnceleb-resnet34-LM`，程序使用
-  保留相同权重、按 sherpa-onnx 官方字段补充元数据的
-  `speaker-diarization/wespeaker-cnceleb-resnet34-LM-sherpa.onnx`，
-  SHA-256 为
-  `8d8ed5770e08001942b8e9922319529f800b5c1bbe8a59524a113d0ace0d2a17`。
+```text
+D:\models\sherpa-onnx\
+├── silero-vad\
+│   └── silero_vad.onnx
+├── paraformer-streaming-int8\
+│   ├── encoder.int8.onnx
+│   ├── decoder.int8.onnx
+│   └── tokens.txt
+└── speaker-diarization\
+    ├── pyannote-segmentation\
+    │   └── model.int8.onnx
+    └── wespeaker-cnceleb-resnet34-LM-sherpa.onnx
+```
 
-声纹模型不改变 pyannote segmentation、ASR、时间对齐或历史记录格式，
-并且仍在开始会议后延迟加载。
+WeSpeaker 文件保持原始权重，仅补充 sherpa-onnx 读取所需的模型元数据。
+模型的许可证、来源和修改说明见
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 当前分支运行方式
 
@@ -79,45 +86,85 @@ API `.env` 位于 `%LOCALAPPDATA%\HearU Mate`，卸载时默认保留用户数�
 
 构建命令和目录说明见 `packaging/README.md`。
 
-## 测试
+## AI 校对与摘要
 
-    & "D:\apps\anaconda\envs\meeting_onnx\python.exe" -m unittest discover -s tests -v
+AI 功能是可选的，本地转写不依赖在线 API。首次启用 AI 功能时，在设置页填写：
 
-单元测试使用临时目录和模拟服务，不访问网络、不采集音频。真实模型兼容性
-需使用单独的本地 smoke test 验证。
+- API 地址
+- 完整模型名称
+- 用户自己的 API Key
+
+DeepSeek 示例：
+
+```text
+API 地址：https://api.deepseek.com
+模型名称：使用账户中可用的模型名称
+```
+
+硅基流动示例：
+
+```text
+API 地址：https://api.siliconflow.cn/v1
+模型名称：从硅基流动模型广场复制完整 Model ID
+```
+
+不要把 API Key 写入源码、Issue、截图或提交记录。
 
 ## 数据与隐私
 
+- VAD、ASR 和说话人分析均在用户电脑本地运行。
 - 默认不保存原始音频。
-- 录制期间，说话人分析所需的 16 kHz 单声道音频写入 Windows 系统临时
-  文件，避免长会议整段堆积在 Python 内存；停止、失败或进程退出时由文件
-  句柄自动删除，不作为会议文件保留。
-- 每个 Final ASR 片段会立即检查点写入 SQLite。若程序意外退出，已经完成的
-  片段仍可从标记为 interrupted 的会议中查看；正常结束时会由说话人对齐和
-  AI 校对后的最终片段替换。
-- 用户输入的 API Key 保存在本项目 .env，并加载到进程环境变量
-  DEEPSEEK_API_KEY；设置页输入新值时原子替换。
-- .gitignore 排除 .env、Key、数据库、会议输出和音频文件；.env.example
-  只包含空变量名，不包含真实 Key。
-- 校对按批次执行并对异常响应重试一次；单批失败只回退该批原文。界面会明确
-  标记 success、partial 或 fallback，不再把校对失败显示成普通成品。
-- 校对失败或部分失败的历史会议会显示“重新 AI 校对”按钮。重新校对在独立
-  QThread 中运行，保留 raw_text、说话人命名和已有摘要，并重新生成 JSON 与
-  Markdown；新的失败记录会保存可安全展示的错误原因。
-- AI 摘要在独立 QThread 中生成；失败不会覆盖原始纪要或已有摘要。
-- 应用不读取 DocAgent 的 agent/.env。
+- 录制期间的分析音频存放在系统临时文件中，结束或失败后释放。
+- Final 片段实时写入 SQLite，异常退出时已完成的片段仍可恢复查看。
+- 只有启用 AI 校对或 AI 摘要时，会议文字才会发送给用户配置的 API 服务；
+  原始音频不会发送给该服务。
+- API Key 保存在本地 `.env`，并被 `.gitignore` 排除。
+- `.env`、会议数据、数据库、音视频、模型和构建产物不会被提交到 Git。
 
-## 目录
+请在录制或转写他人内容前遵守所在地法律、平台规则，并取得必要同意。
 
-    MeetingRecorderDesktop/
-    ├── meeting/       # 独立会议核心
-    ├── desktop/       # PySide6 GUI 与 QThread 工作线程
-    ├── assets/
-    ├── config/
-    ├── data/meetings/
-    ├── tests/
-    ├── requirements.txt
-    └── README.md
+## 开发与测试
 
-模型采用延迟初始化：只查看历史或修改设置时不会占用模型内存；每次会议结束
-后会释放音频设备和模型资源。
+桌面 GUI 使用 PySide6。GUI 主线程只负责界面；设备枚举、录音、VAD、ASR、
+说话人区分、AI 校对和摘要均在工作线程或隔离进程中运行。
+
+运行不访问真实声卡和模型的单元测试：
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+分支约定：
+
+- `main`：源码开发分支，使用开发模型目录和项目内会议数据。
+- `packaging/windows-installer`：Windows 安装版构建分支，使用安装目录模型和
+  `%LOCALAPPDATA%\HearU Mate` 用户数据目录。
+
+## 已知限制
+
+- 当前只支持 Windows。
+- 当前主要采集系统输出音频，不是麦克风录音工具。
+- 说话人身份在会后分析，实时阶段显示的是转写内容而非最终说话人标签。
+- 英文专有名词、人名、低音质音频和多人重叠说话仍可能影响准确率。
+- 尚未提供自动更新和公开预编译安装包。
+
+## 项目结构
+
+```text
+MeetingRecorderDesktop/
+├── meeting/       # 音频、VAD、ASR、说话人、校对和存储核心
+├── desktop/       # PySide6 GUI 与工作线程
+├── assets/        # 图标与界面资源
+├── config/        # 开发配置示例
+├── data/meetings/ # 本地会议数据（Git 忽略）
+├── tests/         # 不加载真实模型的单元测试
+└── packaging/     # Windows 安装版构建文件（安装分支）
+```
+
+## 许可证
+
+项目源码采用 [Apache License 2.0](LICENSE)。第三方库和模型继续受各自许可证
+约束，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+Apache-2.0 允许个人和企业使用、修改、分发及商业化本项目，但必须遵守许可证
+中的版权、许可声明和修改说明要求。
