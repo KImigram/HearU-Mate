@@ -17,14 +17,17 @@
 
 ## 界面预览
 
-<!-- 截图位置 1：将主界面截图保存为 docs/images/home.png 后取消下一行注释。 -->
-<!-- ![新建转写](docs/images/home.png) -->
+### 新建转写
 
-<!-- 截图位置 2：将实时转写截图保存为 docs/images/live-transcription.png。 -->
-<!-- ![实时转写与悬浮字幕](docs/images/live-transcription.png) -->
+![新建转写](docs/images/home.png)
 
-<!-- 截图位置 3：将历史纪要截图保存为 docs/images/history-summary.png。 -->
-<!-- ![历史纪要与 AI 摘要](docs/images/history-summary.png) -->
+### 实时转写与悬浮字幕
+
+![实时转写与悬浮字幕](docs/images/live-transcription.png)
+
+### 历史纪要与 AI 摘要
+
+![历史纪要与 AI 摘要](docs/images/history-summary.png)
 
 ## 功能
 
