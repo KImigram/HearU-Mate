@@ -62,6 +62,16 @@ QPushButton:disabled {
     background: #f1f5f9;
     border-color: #9ca3af;
 }
+#currentMeetingButton {
+    background: #eef6ff;
+    border: 1px solid #b8cce4;
+    color: #244f7c;
+    font-weight: normal;
+}
+#currentMeetingButton:hover {
+    background: #e2effd;
+    border-color: #8eafd1;
+}
 #speakerNamesButton, #exportMarkdownButton, #summaryButton {
     background: #ffffff;
     border: 1px solid #c9cbd2;

@@ -117,6 +117,9 @@ class MainWindow(QMainWindow):
         brand_layout.addWidget(brand_chinese)
         self.new_meeting_button = QPushButton("＋  新建会议")
         self.new_meeting_button.setObjectName("primaryButton")
+        self.current_meeting_button = QPushButton("返回当前纪要")
+        self.current_meeting_button.setObjectName("currentMeetingButton")
+        self.current_meeting_button.setVisible(False)
         history_label = QLabel("历史会议")
         history_label.setObjectName("sectionLabel")
         self.history_tree = QTreeWidget()
@@ -129,6 +132,7 @@ class MainWindow(QMainWindow):
 
         side_layout.addWidget(brand_block)
         side_layout.addWidget(self.new_meeting_button)
+        side_layout.addWidget(self.current_meeting_button)
         side_layout.addSpacing(8)
         side_layout.addWidget(history_label)
         side_layout.addWidget(self.history_tree, 1)
@@ -416,6 +420,9 @@ class MainWindow(QMainWindow):
 
     def _connect_signals(self) -> None:
         self.new_meeting_button.clicked.connect(self.show_new_meeting)
+        self.current_meeting_button.clicked.connect(
+            self.show_current_meeting
+        )
         self.settings_button.clicked.connect(self.open_settings)
         self.start_button.clicked.connect(self.start_recording)
         self.stop_button.clicked.connect(self.stop_recording)
@@ -435,8 +442,14 @@ class MainWindow(QMainWindow):
         )
 
     def show_new_meeting(self) -> None:
-        if self._thread is None:
-            self.pages.setCurrentWidget(self.home_page)
+        if self._thread is not None:
+            self.show_current_meeting()
+            return
+        self.pages.setCurrentWidget(self.home_page)
+
+    def show_current_meeting(self) -> None:
+        if self._thread is not None:
+            self.pages.setCurrentWidget(self.recording_page)
 
     def open_settings(self) -> None:
         dialog = SettingsDialog(
@@ -504,6 +517,7 @@ class MainWindow(QMainWindow):
         self.current_device_label.setText(self.device_combo.currentText())
         self.recording_status.setText("● 正在启动")
         self.stop_button.setEnabled(True)
+        self.current_meeting_button.setVisible(True)
         self.pages.setCurrentWidget(self.recording_page)
 
         options = RecorderOptions(
@@ -673,6 +687,7 @@ class MainWindow(QMainWindow):
     def _thread_finished(self) -> None:
         self._thread = None
         self._worker = None
+        self.current_meeting_button.setVisible(False)
         self.elapsed_timer.stop()
         if self._close_after_finish:
             self._close_after_finish = False
