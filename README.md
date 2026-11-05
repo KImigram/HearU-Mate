@@ -12,8 +12,7 @@
   Local-first Windows transcription for meetings, lectures, and locally played media.
 </p>
 
-> 当前仓库提供源码开发版本，暂不发布预编译安装包。Windows 安装包计划在
-> 功能进一步稳定后的 `0.2.0` 或 `1.0.0` 版本发布。
+> 当前仓库提供源码开发版本，并已发布最新 Windows 安装包 `0.2.0` 。
 
 ## 界面预览
 
