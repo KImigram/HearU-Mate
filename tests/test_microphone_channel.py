@@ -206,7 +206,7 @@ class MicrophoneChannelTests(unittest.TestCase):
             models_enabled=True,
             microphone_device_id="mic-1",
         )
-        worker = RecorderWorker(options, ".")
+        worker = RecorderWorker(options, ".", ".")
         worker._microphone_channel = BrokenChannel()
         errors: list[str] = []
         worker.microphone_error.connect(errors.append)

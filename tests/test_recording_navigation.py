@@ -18,7 +18,12 @@ class RecordingNavigationTests(unittest.TestCase):
     def test_active_recording_can_be_reopened_after_viewing_history(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as folder:
             with patch("desktop.main_window.QTimer.singleShot"):
-                window = MainWindow(folder, simulation_mode=True)
+                window = MainWindow(
+                    folder,
+                    Path(folder) / "meetings",
+                    Path(folder) / "models",
+                    simulation_mode=True,
+                )
             self.assertTrue(window.current_meeting_button.isHidden())
 
             window._thread = object()  # type: ignore[assignment]
@@ -38,7 +43,12 @@ class RecordingNavigationTests(unittest.TestCase):
     def test_new_meeting_button_returns_to_active_recording(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as folder:
             with patch("desktop.main_window.QTimer.singleShot"):
-                window = MainWindow(folder, simulation_mode=True)
+                window = MainWindow(
+                    folder,
+                    Path(folder) / "meetings",
+                    Path(folder) / "models",
+                    simulation_mode=True,
+                )
             window._thread = object()  # type: ignore[assignment]
             window.pages.setCurrentWidget(window.detail_page)
 

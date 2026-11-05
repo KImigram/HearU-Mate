@@ -28,7 +28,7 @@ Build from PowerShell:
 
 ```powershell
 & "D:\apps\anaconda\envs\meeting_onnx\python.exe" -m pip install -r requirements-build.txt
-& .\packaging\build.ps1 -Version 0.1.0
+& .\packaging\build.ps1 -Version 0.2.0
 ```
 
 The installer step requires Inno Setup 7 (recommended) or Inno Setup 6. The
