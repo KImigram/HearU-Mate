@@ -132,6 +132,15 @@ class MainWindow(QMainWindow):
         self.settings_button = QPushButton("设置")
         self.settings_button.setObjectName("settingsButton")
         self.settings_button.setMinimumHeight(40)
+        github_support = QLabel(
+            '<a href="https://github.com/KImigram/HearU-Mate" '
+            'style="color:#4b78a8; text-decoration:underline;">'
+            'Like HearU Mate? Click to star on GitHub.</a>'
+        )
+        github_support.setObjectName("githubSupportLink")
+        github_support.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        github_support.setOpenExternalLinks(True)
+        github_support.setToolTip("Open GitHub and star HearU Mate")
 
         side_layout.addWidget(brand_block)
         side_layout.addWidget(self.new_meeting_button)
@@ -139,6 +148,7 @@ class MainWindow(QMainWindow):
         side_layout.addSpacing(8)
         side_layout.addWidget(history_label)
         side_layout.addWidget(self.history_tree, 1)
+        side_layout.addWidget(github_support)
         side_layout.addWidget(self.settings_button)
 
         self.pages = QStackedWidget()
@@ -214,20 +224,13 @@ class MainWindow(QMainWindow):
             self.runtime_settings.correction_enabled
         )
 
-        hint = QLabel(
-            "首次开始会加载本地语音与说话人模型，建议在正式会议开始前"
-            "提前开启几秒。"
-        )
-        hint.setObjectName("hintBox")
-        hint.setWordWrap(True)
-        hint.setMinimumHeight(58)
         self.mode_hint = QLabel(
-            "本地语音与说话人模型会在开始纪要后由后台线程加载，"
-            "首次启动可能需要数秒。"
+            "首次开始会在后台加载本地模型，可能需要数秒；"
+            "建议正式使用前提前开启。"
         )
         self.mode_hint.setObjectName("devHint")
         self.mode_hint.setWordWrap(True)
-        self.mode_hint.setMinimumHeight(58)
+        self.mode_hint.setMinimumHeight(52)
         self.start_button = QPushButton("开始纪要")
         self.start_button.setObjectName("startButton")
         self.start_button.setMinimumHeight(48)
@@ -246,7 +249,6 @@ class MainWindow(QMainWindow):
         card_layout.addWidget(speaker_model_label)
         card_layout.addWidget(self.speaker_model_combo)
         card_layout.addWidget(self.correction_check)
-        card_layout.addWidget(hint)
         card_layout.addWidget(self.mode_hint)
         card_layout.addWidget(self.start_button)
 
