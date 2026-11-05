@@ -31,6 +31,7 @@ class ReadableParagraph:
     end_time: float
     speaker: str | None
     text: str
+    source: str = "system"
 
 
 def _normalize_text(text: str) -> str:
@@ -94,6 +95,7 @@ def build_readable_paragraphs(
             gap = max(0.0, segment.start_time - previous.end_time)
             if (
                 segment.speaker == previous.speaker
+                and segment.source == previous.source
                 and gap <= merge_gap_seconds
                 and len(previous.text) + len(text) + 1 <= max_paragraph_chars
             ):
@@ -105,6 +107,7 @@ def build_readable_paragraphs(
             end_time=segment.end_time,
             speaker=segment.speaker,
             text=text,
+            source=segment.source,
         ))
 
     for paragraph in paragraphs:

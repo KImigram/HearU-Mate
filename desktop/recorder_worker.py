@@ -11,7 +11,11 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Signal, Slot
 
 from meeting.config import MeetingConfig
-from meeting.audio_capture import WasapiLoopbackCapture
+from meeting.audio_capture import (
+    WasapiLoopbackCapture,
+    WasapiMicrophoneCapture,
+)
+from meeting.microphone_channel import MicrophoneChannel
 from meeting.recorder import MeetingRecorder, RecorderEvent
 from meeting.store import MeetingStore
 from meeting.transcript import MeetingTranscript, TranscriptSegment
@@ -33,6 +37,9 @@ class RecorderOptions:
     models_enabled: bool = True
     simulation_delay: float = 0.12
     speaker_embedding_profile: str = "wespeaker_cnceleb_resnet34_lm"
+    microphone_device_id: str | None = None
+    microphone_device_name: str = ""
+    microphone_enabled: bool = False
 
 
 class RecorderWorker(QObject):
@@ -44,6 +51,10 @@ class RecorderWorker(QObject):
     completed = Signal(str)
     error = Signal(str)
     finished = Signal()
+    microphone_partial = Signal(str)
+    microphone_final = Signal(str, float, float)
+    microphone_status = Signal(bool, str)
+    microphone_error = Signal(str)
 
     def __init__(
         self,
@@ -59,6 +70,9 @@ class RecorderWorker(QObject):
         self._meeting_id: str | None = None
         self._active_store: MeetingStore | None = None
         self._live_segment_sequence = 0
+        self._segment_lock = threading.Lock()
+        self._microphone_channel: MicrophoneChannel | None = None
+        self._microphone_desired = bool(options.microphone_enabled)
 
     @Slot()
     def run(self) -> None:
@@ -104,6 +118,23 @@ class RecorderWorker(QObject):
         if self._recorder is not None:
             self._recorder.request_stop()
 
+    def set_microphone_enabled(self, enabled: bool) -> None:
+        """Thread-safe microphone control callable from the GUI thread."""
+        self._microphone_desired = bool(enabled)
+        channel = self._microphone_channel
+        if channel is None:
+            if enabled and not self.options.microphone_device_id:
+                self.microphone_error.emit("尚未选择可用的麦克风设备")
+            return
+        try:
+            channel.set_enabled(bool(enabled))
+        except Exception as exc:
+            # Optional microphone failures must never interrupt the loopback
+            # recorder that owns the meeting.
+            logger.exception("Failed to change microphone state")
+            self._microphone_desired = False
+            self.microphone_error.emit(f"{type(exc).__name__}: {exc}")
+
     def _new_config(self) -> MeetingConfig:
         config = MeetingConfig()
         config.audio.device_id = self.options.device_id
@@ -141,6 +172,7 @@ class RecorderWorker(QObject):
             event_handler=self._handle_event,
             meeting_id=meeting_id,
         )
+        self._recorder.before_stop = self._stop_microphone_channel
         transcript = self._recorder.run()
         self.status.emit("正在保存")
         output_dir = self._recorder.save()
@@ -230,18 +262,30 @@ class RecorderWorker(QObject):
 
     def _handle_event(self, event: RecorderEvent) -> None:
         if event.type == "partial":
-            self.partial.emit(event.text)
+            if event.source == "microphone":
+                self.microphone_partial.emit(event.text)
+            else:
+                self.partial.emit(event.text)
         elif event.type == "final":
             self._save_live_segment(
                 event.text,
                 float(event.start_time or 0.0),
                 float(event.end_time or 0.0),
+                speaker=event.speaker,
+                source=event.source,
             )
-            self.final.emit(
-                event.text,
-                float(event.start_time or 0.0),
-                float(event.end_time or 0.0),
-            )
+            if event.source == "microphone":
+                self.microphone_final.emit(
+                    event.text,
+                    float(event.start_time or 0.0),
+                    float(event.end_time or 0.0),
+                )
+            else:
+                self.final.emit(
+                    event.text,
+                    float(event.start_time or 0.0),
+                    float(event.end_time or 0.0),
+                )
         elif event.type == "status":
             labels = {
                 "recording": "录制中",
@@ -262,24 +306,33 @@ class RecorderWorker(QObject):
                         database_status,
                     )
             self.status.emit(labels.get(event.text, event.text))
+            if event.text == "recording":
+                self._start_microphone_channel()
 
     def _save_live_segment(
         self,
         text: str,
         start_time: float,
         end_time: float,
+        *,
+        speaker: str | None = None,
+        source: str = "system",
     ) -> None:
         if self._active_store is None or not self._meeting_id:
             return
         try:
+            with self._segment_lock:
+                sequence = self._live_segment_sequence
+                self._live_segment_sequence += 1
             self._active_store.save_live_segment(
                 self._meeting_id,
-                self._live_segment_sequence,
+                sequence,
                 start_time,
                 end_time,
                 text,
+                speaker=speaker,
+                source=source,
             )
-            self._live_segment_sequence += 1
         except Exception:
             # A transient checkpoint failure must not stop audio capture. The
             # final save still has another opportunity to persist everything.
@@ -298,6 +351,7 @@ class RecorderWorker(QObject):
             pass
 
     def _release(self) -> None:
+        self._stop_microphone_channel()
         recorder = self._recorder
         self._recorder = None
         self._active_store = None
@@ -315,11 +369,51 @@ class RecorderWorker(QObject):
                 except Exception:
                     pass
 
+    def _start_microphone_channel(self) -> None:
+        if self._microphone_channel is not None:
+            return
+        recorder = self._recorder
+        if recorder is None or recorder.timeline_started_at is None:
+            return
+        if not self.options.microphone_device_id:
+            if self._microphone_desired:
+                self.microphone_error.emit("尚未选择可用的麦克风设备")
+            return
+        channel = MicrophoneChannel(
+            self._new_config(),
+            self.options.microphone_device_id,
+            timeline_origin=recorder.timeline_started_at,
+            result_handler=self._handle_microphone_result,
+            status_handler=self.microphone_status.emit,
+            error_handler=self.microphone_error.emit,
+        )
+        self._microphone_channel = channel
+        channel.start(enabled=self._microphone_desired)
+
+    def _handle_microphone_result(self, result) -> None:
+        recorder = self._recorder
+        if recorder is None:
+            return
+        recorder.accept_external_asr_result(
+            result,
+            source="microphone",
+            speaker="本人",
+        )
+
+    def _stop_microphone_channel(self) -> None:
+        channel = self._microphone_channel
+        self._microphone_channel = None
+        if channel is not None:
+            channel.stop()
+        self._microphone_desired = False
+
 
 class DeviceDiscoveryWorker(QObject):
     """Enumerates WASAPI loopback devices outside the GUI thread."""
 
     devices_ready = Signal(object)
+    microphones_ready = Signal(object)
+    microphone_error = Signal(str)
     error = Signal(str)
     finished = Signal()
 
@@ -337,6 +431,20 @@ class DeviceDiscoveryWorker(QObject):
                     for device in devices
                 ]
                 self.devices_ready.emit(payload)
+                try:
+                    microphones = WasapiMicrophoneCapture().list_devices()
+                    self.microphones_ready.emit([
+                        {
+                            "id": device.id,
+                            "name": device.name,
+                            "is_default": device.is_default,
+                        }
+                        for device in microphones
+                    ])
+                except Exception as exc:
+                    self.microphone_error.emit(
+                        f"{type(exc).__name__}: {exc}"
+                    )
         except Exception as exc:
             self.error.emit(f"{type(exc).__name__}: {exc}")
         finally:

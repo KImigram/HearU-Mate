@@ -72,6 +72,7 @@ class MeetingStore:
                     start_time REAL NOT NULL,
                     end_time REAL NOT NULL,
                     speaker TEXT,
+                    source TEXT NOT NULL DEFAULT 'system',
                     raw_text TEXT NOT NULL,
                     corrected_text TEXT,
                     corrections_json TEXT NOT NULL DEFAULT '[]',
@@ -124,6 +125,17 @@ class MeetingStore:
             if "speaker_error" not in columns:
                 connection.execute(
                     "ALTER TABLE meetings ADD COLUMN speaker_error TEXT"
+                )
+            segment_columns = {
+                row["name"]
+                for row in connection.execute(
+                    "PRAGMA table_info(meeting_segments)"
+                )
+            }
+            if "source" not in segment_columns:
+                connection.execute(
+                    "ALTER TABLE meeting_segments "
+                    "ADD COLUMN source TEXT NOT NULL DEFAULT 'system'"
                 )
             connection.execute(
                 """
@@ -189,6 +201,9 @@ class MeetingStore:
         start_time: float,
         end_time: float,
         raw_text: str,
+        *,
+        speaker: str | None = None,
+        source: str = "system",
     ) -> None:
         """Checkpoint one finalized ASR segment during recording.
 
@@ -204,11 +219,13 @@ class MeetingStore:
                 """
                 INSERT INTO meeting_segments(
                     meeting_id, sequence, start_time, end_time, speaker,
-                    raw_text, corrected_text, corrections_json
-                ) VALUES (?, ?, ?, ?, NULL, ?, NULL, '[]')
+                    source, raw_text, corrected_text, corrections_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, '[]')
                 ON CONFLICT(meeting_id, sequence) DO UPDATE SET
                     start_time = excluded.start_time,
                     end_time = excluded.end_time,
+                    speaker = excluded.speaker,
+                    source = excluded.source,
                     raw_text = excluded.raw_text
                 """,
                 (
@@ -216,6 +233,8 @@ class MeetingStore:
                     int(sequence),
                     float(start_time),
                     float(end_time),
+                    speaker,
+                    str(source or "system"),
                     text,
                 ),
             )
@@ -284,8 +303,8 @@ class MeetingStore:
                 """
                 INSERT INTO meeting_segments(
                     meeting_id, sequence, start_time, end_time, speaker,
-                    raw_text, corrected_text, corrections_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    source, raw_text, corrected_text, corrections_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -294,6 +313,7 @@ class MeetingStore:
                         segment.start_time,
                         segment.end_time,
                         segment.speaker,
+                        segment.source,
                         segment.text,
                         segment.corrected_text,
                         json.dumps(segment.corrections, ensure_ascii=False),
@@ -329,6 +349,7 @@ class MeetingStore:
                             is_final=bool(item.get("is_final", True)),
                             corrected_text=item.get("corrected_text"),
                             corrections=item.get("corrections") or [],
+                            source=str(item.get("source") or "system"),
                         )
                         for item in payload.get("segments", [])
                     ],
@@ -362,7 +383,7 @@ class MeetingStore:
                 return None
             segments = connection.execute(
                 """
-                SELECT sequence, start_time, end_time, speaker,
+                SELECT sequence, start_time, end_time, speaker, source,
                        raw_text, corrected_text, corrections_json
                 FROM meeting_segments
                 WHERE meeting_id = ?
@@ -530,6 +551,7 @@ class MeetingStore:
                     ),
                     corrected_text=segment.get("corrected_text"),
                     corrections=segment.get("corrections") or [],
+                    source=str(segment.get("source") or "system"),
                 )
                 for segment in meeting["segments"]
             ],

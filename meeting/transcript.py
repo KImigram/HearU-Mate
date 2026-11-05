@@ -26,6 +26,7 @@ class TranscriptSegment:
     is_final: bool = True
     corrected_text: str | None = None
     corrections: list[dict] = field(default_factory=list)
+    source: str = "system"
 
     def to_dict(self):
         payload = {
@@ -34,6 +35,7 @@ class TranscriptSegment:
             "speaker": self.speaker,
             "text": self.text,
             "is_final": self.is_final,
+            "source": self.source,
         }
         if self.corrected_text is not None:
             payload["corrected_text"] = self.corrected_text
@@ -122,8 +124,13 @@ class MeetingTranscript:
         )
         for segment in rendered_segments:
             speaker = (segment.speaker or "Speaker Pending").replace("_", " ")
+            source = (
+                "麦克风"
+                if segment.source == "microphone"
+                else "系统音频"
+            )
             lines.extend([
-                f"### {format_timestamp(segment.start_time)} · {speaker}",
+                f"### {format_timestamp(segment.start_time)} · {speaker} · {source}",
                 "",
                 "",
                 segment.text,

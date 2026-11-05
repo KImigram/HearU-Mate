@@ -44,6 +44,8 @@ def align_transcript(
     speaker_segments: list[SpeakerSegment],
 ) -> list[TranscriptSegment]:
     for segment in transcript_segments:
+        if segment.source == "microphone":
+            continue
         speaker = align_speaker(segment, speaker_segments)
         if speaker:
             segment.speaker = speaker
