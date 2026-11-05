@@ -17,7 +17,11 @@ from desktop.recorder_worker import (
     RecorderOptions,
     RecorderWorker,
 )
-from meeting.audio_capture import AudioDevice, WasapiLoopbackCapture
+from meeting.audio_capture import (
+    AudioDevice,
+    WasapiLoopbackCapture,
+    WasapiMicrophoneCapture,
+)
 from meeting.windows_com import (
     RPC_E_CHANGED_MODE,
     S_FALSE,
@@ -126,6 +130,14 @@ class WindowsComTests(unittest.TestCase):
         worker.devices_ready.connect(devices.extend)
         worker.error.connect(errors.append)
         fake_device = AudioDevice("device-1", "Fake Output", True)
+        fake_microphone = AudioDevice(
+            "microphone-1",
+            "Fake Microphone",
+            True,
+            False,
+        )
+        microphones = []
+        worker.microphones_ready.connect(microphones.extend)
         with (
             patch(
                 "desktop.recorder_worker.WindowsComApartment",
@@ -136,10 +148,16 @@ class WindowsComTests(unittest.TestCase):
                 "list_devices",
                 return_value=[fake_device],
             ),
+            patch.object(
+                WasapiMicrophoneCapture,
+                "list_devices",
+                return_value=[fake_microphone],
+            ),
         ):
             worker.run()
         self.assertFalse(errors)
         self.assertEqual(devices[0]["id"], "device-1")
+        self.assertEqual(microphones[0]["id"], "microphone-1")
         self.assertEqual(
             TrackingApartment.events,
             ["com_enter", "com_exit"],

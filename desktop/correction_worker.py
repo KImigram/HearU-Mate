@@ -71,6 +71,7 @@ class HistoricalCorrectionWorker(QObject):
                     text=str(segment.get("raw_text") or ""),
                     speaker=segment.get("speaker") or "Speaker_01",
                     is_final=True,
+                    source=str(segment.get("source") or "system"),
                 )
                 for segment in source_segments
             ],

@@ -75,6 +75,9 @@ class MainWindow(QMainWindow):
         self._correction_worker: HistoricalCorrectionWorker | None = None
         self._correction_meeting_id: str | None = None
         self._partial_row: TranscriptRow | None = None
+        self._microphone_partial_row: TranscriptRow | None = None
+        self._microphone_requested = False
+        self._microphone_enabled = False
         self._subtitle_overlay: SubtitleOverlay | None = None
         self._elapsed_seconds = 0
         self._close_after_finish = False
@@ -176,6 +179,20 @@ class MainWindow(QMainWindow):
         self.device_combo.addItem("正在检测输出设备…", None)
         self.device_combo.setEnabled(False)
 
+        microphone_label = QLabel("本人麦克风（可选）")
+        microphone_label.setObjectName("fieldLabel")
+        self.microphone_combo = QComboBox()
+        self.microphone_combo.addItem("正在检测麦克风…", None)
+        self.microphone_combo.setEnabled(False)
+        self.microphone_start_check = QCheckBox(
+            "会议开始时启用本人麦克风（默认关闭，建议佩戴耳机）"
+        )
+        self.microphone_start_check.setChecked(False)
+        self.microphone_start_check.setEnabled(False)
+        self.microphone_start_check.setToolTip(
+            "建议佩戴耳机，避免扬声器声音被麦克风重复识别"
+        )
+
         speaker_label = QLabel("预计说话人数")
         speaker_label.setObjectName("fieldLabel")
         self.speaker_combo = QComboBox()
@@ -223,6 +240,9 @@ class MainWindow(QMainWindow):
         card_layout.addSpacing(8)
         card_layout.addWidget(device_label)
         card_layout.addWidget(self.device_combo)
+        card_layout.addWidget(microphone_label)
+        card_layout.addWidget(self.microphone_combo)
+        card_layout.addWidget(self.microphone_start_check)
         card_layout.addWidget(speaker_label)
         card_layout.addWidget(self.speaker_combo)
         card_layout.addWidget(speaker_model_label)
@@ -260,11 +280,17 @@ class MainWindow(QMainWindow):
         self.current_device_label.setObjectName("recordingSubmeta")
         separator = QLabel("·")
         separator.setObjectName("recordingSubmeta")
+        microphone_separator = QLabel("·")
+        microphone_separator.setObjectName("recordingSubmeta")
         self.elapsed_label = QLabel("00:00:00")
         self.elapsed_label.setObjectName("recordingSubmeta")
+        self.microphone_state_label = QLabel("本人麦克风已关闭")
+        self.microphone_state_label.setObjectName("recordingSubmeta")
         submeta.addWidget(self.current_device_label)
-        submeta.addWidget(separator)
+        submeta.addWidget(microphone_separator)
         submeta.addWidget(self.elapsed_label)
+        submeta.addWidget(separator)
+        submeta.addWidget(self.microphone_state_label)
         submeta.addStretch(1)
         left.addLayout(submeta)
 
@@ -296,9 +322,18 @@ class MainWindow(QMainWindow):
         self.subtitle_toggle_button.setObjectName("subtitleToggleButton")
         self.subtitle_toggle_button.setMinimumHeight(44)
         self.subtitle_toggle_button.setFixedWidth(150)
+        self.microphone_toggle_button = QPushButton("开启本人麦克风")
+        self.microphone_toggle_button.setObjectName(
+            "microphoneToggleButton"
+        )
+        self.microphone_toggle_button.setMinimumHeight(44)
+        self.microphone_toggle_button.setFixedWidth(160)
+        self.microphone_toggle_button.setEnabled(False)
 
         bottom = QHBoxLayout()
         bottom.addStretch(1)
+        bottom.addWidget(self.microphone_toggle_button)
+        bottom.addSpacing(10)
         bottom.addWidget(self.subtitle_toggle_button)
         bottom.addSpacing(10)
         bottom.addWidget(self.stop_button)
@@ -431,6 +466,9 @@ class MainWindow(QMainWindow):
         self.subtitle_toggle_button.clicked.connect(
             self.toggle_subtitle_overlay
         )
+        self.microphone_toggle_button.clicked.connect(
+            self.toggle_microphone
+        )
         self.history_tree.itemClicked.connect(self._history_clicked)
         self.speaker_names_button.clicked.connect(
             self.edit_speaker_names
@@ -514,9 +552,29 @@ class MainWindow(QMainWindow):
             "模型加载完成后，识别内容会实时显示在这里。"
         )
         self._partial_row = None
+        self._microphone_partial_row = None
+        self._microphone_requested = bool(
+            self.microphone_start_check.isChecked()
+            and self.microphone_combo.currentData() is not None
+        )
+        self._microphone_enabled = False
         self._elapsed_seconds = 0
         self._update_elapsed()
         self.current_device_label.setText(self.device_combo.currentText())
+        self.microphone_state_label.setText(
+            "本人麦克风正在开启…"
+            if self._microphone_requested
+            else "本人麦克风已关闭"
+        )
+        self.microphone_toggle_button.setText(
+            "正在开启麦克风…"
+            if self._microphone_requested
+            else "开启本人麦克风"
+        )
+        self.microphone_toggle_button.setEnabled(
+            self.microphone_combo.currentData() is not None
+            and not self._microphone_requested
+        )
         self.recording_status.setText("● 正在启动")
         self.stop_button.setEnabled(True)
         self.current_meeting_button.setVisible(True)
@@ -534,6 +592,9 @@ class MainWindow(QMainWindow):
             model=self.runtime_settings.model,
             simulation=self.simulation_mode,
             models_enabled=self.models_enabled,
+            microphone_device_id=self.microphone_combo.currentData(),
+            microphone_device_name=self.microphone_combo.currentText(),
+            microphone_enabled=self._microphone_requested,
         )
         thread = QThread(self)
         worker = RecorderWorker(
@@ -548,6 +609,10 @@ class MainWindow(QMainWindow):
         worker.status.connect(self._on_status)
         worker.completed.connect(self._on_completed)
         worker.error.connect(self._on_error)
+        worker.microphone_partial.connect(self._on_microphone_partial)
+        worker.microphone_final.connect(self._on_microphone_final)
+        worker.microphone_status.connect(self._on_microphone_status)
+        worker.microphone_error.connect(self._on_microphone_error)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(self._thread_finished)
@@ -570,6 +635,14 @@ class MainWindow(QMainWindow):
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.devices_ready.connect(self._on_devices_ready)
+        # Keep compatibility with lightweight discovery workers used by tests
+        # and downstream integrations that only expose system-output signals.
+        microphones_ready = getattr(worker, "microphones_ready", None)
+        microphone_error = getattr(worker, "microphone_error", None)
+        if microphones_ready is not None:
+            microphones_ready.connect(self._on_microphones_ready)
+        if microphone_error is not None:
+            microphone_error.connect(self._on_microphone_device_error)
         worker.error.connect(self._on_device_error)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
@@ -604,6 +677,34 @@ class MainWindow(QMainWindow):
             "无法检测 Windows 输出设备：" + message
         )
 
+    def _on_microphones_ready(self, devices: list[dict]) -> None:
+        self.microphone_combo.clear()
+        default_index = 0
+        for index, device in enumerate(devices):
+            suffix = "（默认）" if device["is_default"] else ""
+            self.microphone_combo.addItem(
+                device["name"] + suffix,
+                device["id"],
+            )
+            if device["is_default"]:
+                default_index = index
+        if devices:
+            self.microphone_combo.setCurrentIndex(default_index)
+            self.microphone_combo.setEnabled(True)
+            self.microphone_start_check.setEnabled(True)
+        else:
+            self.microphone_combo.addItem("未检测到麦克风", None)
+            self.microphone_start_check.setChecked(False)
+            self.microphone_start_check.setEnabled(False)
+
+    def _on_microphone_device_error(self, message: str) -> None:
+        self.microphone_combo.clear()
+        self.microphone_combo.addItem("麦克风检测失败", None)
+        self.microphone_combo.setEnabled(False)
+        self.microphone_start_check.setChecked(False)
+        self.microphone_start_check.setEnabled(False)
+        self.microphone_combo.setToolTip(message)
+
     def _device_thread_finished(self) -> None:
         self._device_thread = None
         self._device_worker = None
@@ -636,6 +737,20 @@ class MainWindow(QMainWindow):
             self._subtitle_overlay = None
         self.subtitle_toggle_button.setText("开启悬浮字幕")
 
+    def toggle_microphone(self) -> None:
+        if self._worker is None:
+            return
+        requested = not self._microphone_enabled
+        self._microphone_requested = requested
+        self.microphone_toggle_button.setEnabled(False)
+        self.microphone_toggle_button.setText(
+            "正在开启麦克风…" if requested else "正在关闭麦克风…"
+        )
+        self.microphone_state_label.setText(
+            "本人麦克风正在开启…" if requested else "本人麦克风正在关闭…"
+        )
+        self._worker.set_microphone_enabled(requested)
+
     def _close_subtitle_overlay(self) -> None:
         if self._subtitle_overlay is not None:
             self._subtitle_overlay.close()
@@ -666,6 +781,60 @@ class MainWindow(QMainWindow):
             self._subtitle_overlay.update_final(text)
         self.transcript_list.scroll_to_bottom()
 
+    def _on_microphone_partial(self, text: str) -> None:
+        if self._microphone_partial_row is None:
+            self._microphone_partial_row = self.transcript_list.add_row(
+                "本人",
+                self._format_offset(self._elapsed_seconds),
+                partial=True,
+            )
+        self._microphone_partial_row.set_text(text)
+        self.transcript_list.scroll_to_bottom()
+
+    def _on_microphone_final(
+        self,
+        text: str,
+        start: float,
+        end: float,
+    ) -> None:
+        timestamp = self._format_offset(start)
+        if self._microphone_partial_row is None:
+            self._microphone_partial_row = self.transcript_list.add_row(
+                "本人",
+                timestamp,
+                partial=True,
+            )
+        self._microphone_partial_row.finalize(text, timestamp)
+        self._microphone_partial_row = None
+        self.transcript_list.scroll_to_bottom()
+
+    def _on_microphone_status(self, enabled: bool, message: str) -> None:
+        self._microphone_enabled = bool(enabled)
+        self._microphone_requested = bool(enabled)
+        self.microphone_state_label.setText(message)
+        self.microphone_toggle_button.setText(
+            "关闭本人麦克风" if enabled else "开启本人麦克风"
+        )
+        self.microphone_toggle_button.setEnabled(
+            self._thread is not None
+            and self.microphone_combo.currentData() is not None
+        )
+
+    def _on_microphone_error(self, message: str) -> None:
+        self._microphone_enabled = False
+        self._microphone_requested = False
+        self.microphone_state_label.setText("本人麦克风不可用")
+        self.microphone_toggle_button.setText("重试开启麦克风")
+        self.microphone_toggle_button.setEnabled(
+            self._thread is not None
+            and self.microphone_combo.currentData() is not None
+        )
+        QMessageBox.warning(
+            self,
+            "麦克风通道已关闭",
+            "麦克风发生错误，但系统音频纪要仍在继续。\n\n" + message,
+        )
+
     def _on_status(self, status: str) -> None:
         active = status.startswith("录制中")
         prefix = "●  " if active else ""
@@ -674,6 +843,7 @@ class MainWindow(QMainWindow):
     def _on_completed(self, meeting_id: str) -> None:
         self.elapsed_timer.stop()
         self.stop_button.setEnabled(False)
+        self.microphone_toggle_button.setEnabled(False)
         self._close_subtitle_overlay()
         self.refresh_history()
         QTimer.singleShot(250, lambda: self.show_meeting(meeting_id))
@@ -681,6 +851,7 @@ class MainWindow(QMainWindow):
     def _on_error(self, message: str) -> None:
         self.elapsed_timer.stop()
         self.stop_button.setEnabled(False)
+        self.microphone_toggle_button.setEnabled(False)
         self._close_subtitle_overlay()
         self.recording_status.setText("发生错误")
         QMessageBox.critical(
@@ -693,6 +864,9 @@ class MainWindow(QMainWindow):
     def _thread_finished(self) -> None:
         self._thread = None
         self._worker = None
+        self._microphone_enabled = False
+        self._microphone_requested = False
+        self.microphone_toggle_button.setEnabled(False)
         self.current_meeting_button.setVisible(False)
         self.elapsed_timer.stop()
         if self._close_after_finish:
@@ -838,6 +1012,7 @@ class MainWindow(QMainWindow):
             segment["speaker"]
             for segment in meeting.get("segments", [])
             if segment.get("speaker")
+            and segment.get("source") != "microphone"
         })
         self.speaker_names_button.setVisible(bool(speaker_labels))
         self.export_markdown_button.setVisible(True)
@@ -1170,6 +1345,7 @@ class MainWindow(QMainWindow):
             segment["speaker"]
             for segment in meeting.get("segments", [])
             if segment.get("speaker")
+            and segment.get("source") != "microphone"
         })
         if not labels:
             QMessageBox.information(
@@ -1302,8 +1478,13 @@ class MainWindow(QMainWindow):
                 str(segment.get("corrected_text") or "").strip()
                 or str(segment.get("raw_text") or "").strip()
             )
+            source = (
+                "麦克风"
+                if segment.get("source") == "microphone"
+                else "系统音频"
+            )
             lines.extend([
-                f"### {start} · {speaker}",
+                f"### {start} · {speaker} · {source}",
                 "",
                 "",
                 text,
@@ -1337,7 +1518,7 @@ class MainWindow(QMainWindow):
             if line.startswith("### "):
                 append_current()
                 heading = line[4:].strip()
-                parts = [part.strip() for part in heading.split("·", 1)]
+                parts = [part.strip() for part in heading.split("·")]
                 timestamp = parts[0]
                 speaker = parts[1] if len(parts) > 1 else "Speaker Pending"
                 body = []

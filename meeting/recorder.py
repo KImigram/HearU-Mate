@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from dataclasses import dataclass
 from typing import Callable
 
@@ -31,6 +32,7 @@ class RecorderEvent:
     start_time: float | None = None
     end_time: float | None = None
     speaker: str | None = None
+    source: str = "system"
 
 
 class MeetingRecorder:
@@ -45,6 +47,7 @@ class MeetingRecorder:
         event_handler: Callable[[RecorderEvent], None] | None = None,
         meeting_id: str | None = None,
         correction_api_key: str | None = None,
+        before_stop: Callable[[], None] | None = None,
     ):
         self.config = config or MeetingConfig()
         # Services are created lazily in start(). Constructing a recorder must
@@ -57,7 +60,11 @@ class MeetingRecorder:
         self.correction_api_key = correction_api_key
         self.event_handler = event_handler
         self.meeting_id = meeting_id
+        self.before_stop = before_stop
         self.transcript: MeetingTranscript | None = None
+        self.timeline_started_at: float | None = None
+        self._transcript_lock = threading.Lock()
+        self._before_stop_called = False
         self._stop_event = threading.Event()
         self._running = False
         self._last_audio_end = 0.0
@@ -134,6 +141,7 @@ class MeetingRecorder:
                 service.stop()
             raise
         self._running = True
+        self.timeline_started_at = time.monotonic()
         self._emit(RecorderEvent("status", "recording"))
         return self.transcript
 
@@ -186,6 +194,15 @@ class MeetingRecorder:
         return self.transcript
 
     def _handle_asr_result(self, result: ASRResult) -> None:
+        self.accept_external_asr_result(result, source="system")
+
+    def accept_external_asr_result(
+        self,
+        result: ASRResult,
+        *,
+        source: str,
+        speaker: str | None = None,
+    ) -> None:
         if not result.text.strip():
             return
         if not result.is_final:
@@ -194,22 +211,28 @@ class MeetingRecorder:
                 result.text,
                 result.start_time,
                 result.end_time,
+                speaker=speaker,
+                source=source,
             ))
             return
         segment = TranscriptSegment(
             start_time=result.start_time,
             end_time=result.end_time,
             text=result.text,
+            speaker=speaker,
             is_final=True,
+            source=source,
         )
         assert self.transcript is not None
-        self.transcript.add_segment(segment)
+        with self._transcript_lock:
+            self.transcript.add_segment(segment)
         self._emit(RecorderEvent(
             "final",
             segment.text,
             segment.start_time,
             segment.end_time,
             segment.speaker,
+            segment.source,
         ))
 
     def request_stop(self) -> None:
@@ -222,6 +245,13 @@ class MeetingRecorder:
         assert self.asr is not None
         assert self.speaker is not None
         errors = []
+        if self.before_stop is not None and not self._before_stop_called:
+            self._before_stop_called = True
+            try:
+                self.before_stop()
+            except Exception as exc:
+                errors.append(exc)
+                logger.exception("Failed to stop optional audio channel")
         try:
             final = self.asr.finalize_utterance(self._last_audio_end)
             if final:
@@ -260,6 +290,10 @@ class MeetingRecorder:
                 logger.exception("Failed to stop %s", type(service).__name__)
         self._running = False
         assert self.transcript is not None
+        with self._transcript_lock:
+            self.transcript.segments.sort(
+                key=lambda item: (item.start_time, item.end_time)
+            )
         align_transcript(
             self.transcript.segments,
             speaker_segments,
@@ -269,7 +303,7 @@ class MeetingRecorder:
             # not retained, so after a native diarization failure the only
             # honest recoverable label is a single fallback speaker.
             for segment in self.transcript.segments:
-                if not segment.speaker:
+                if segment.source == "system" and not segment.speaker:
                     segment.speaker = "Speaker_01"
             if self.transcript.segments and not speaker_error:
                 self.transcript.metadata.setdefault(

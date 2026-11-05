@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from meeting.audio_utils import normalize_audio
-from meeting.alignment import align_speaker
+from meeting.alignment import align_speaker, align_transcript
 from meeting.config import MeetingConfig, SPEAKER_EMBEDDING_PROFILES
 from meeting.recorder import MeetingRecorder
 from meeting.store import MeetingStore
@@ -67,6 +67,20 @@ class CoreTests(unittest.TestCase):
             align_speaker(transcript, diarization),
             "Speaker_01",
         )
+
+    def test_microphone_segment_keeps_the_fixed_self_label(self) -> None:
+        microphone = TranscriptSegment(
+            start_time=0.0,
+            end_time=2.0,
+            text="这是我通过麦克风说的话",
+            speaker="本人",
+            source="microphone",
+        )
+        align_transcript(
+            [microphone],
+            [SpeakerSegment(0.0, 2.0, "Speaker_09")],
+        )
+        self.assertEqual(microphone.speaker, "本人")
 
     def test_recorder_construction_does_not_load_models(self) -> None:
         recorder = MeetingRecorder(MeetingConfig())
@@ -208,7 +222,7 @@ class CoreTests(unittest.TestCase):
             self.assertIn("### 00:00:00 · Speaker 01", markdown)
             self.assertIn("原始文本", markdown)
             self.assertIn(
-                "### 00:00:00 · Speaker 01\n\n\n原始文本。",
+                "### 00:00:00 · Speaker 01 · 系统音频\n\n\n原始文本。",
                 markdown,
             )
 
@@ -249,6 +263,39 @@ class CoreTests(unittest.TestCase):
             ).read_text(encoding="utf-8")
             self.assertIn("### 00:00:00 · 张三", renamed_markdown)
 
+    def test_microphone_source_round_trips_through_all_exports(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as folder:
+            root = Path(folder)
+            store = MeetingStore(root / "history.db")
+            transcript = MeetingTranscript.create(meeting_id="mic-source")
+            transcript.add_segment(TranscriptSegment(
+                start_time=1.0,
+                end_time=2.0,
+                text="本人发言",
+                speaker="本人",
+                source="microphone",
+            ))
+            transcript.finish()
+            output_dir = transcript.save(root / "meetings")
+            store.save_transcript(transcript, output_dir)
+
+            meeting = store.get_meeting("mic-source")
+            self.assertEqual(
+                meeting["segments"][0]["source"],
+                "microphone",
+            )
+            payload = json.loads(
+                (output_dir / "transcript.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                payload["segments"][0]["source"],
+                "microphone",
+            )
+            markdown = (output_dir / "transcript.md").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("· 本人 · 麦克风", markdown)
+
     def test_live_segments_survive_an_interrupted_recording(self) -> None:
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as folder:
             db_path = Path(folder) / "history.db"
@@ -262,6 +309,8 @@ class CoreTests(unittest.TestCase):
                 0.0,
                 2.5,
                 "已经完成识别的第一句话",
+                speaker="本人",
+                source="microphone",
             )
 
             recovered = MeetingStore(db_path).get_meeting("live-meeting")
@@ -271,6 +320,14 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(
                 recovered["segments"][0]["raw_text"],
                 "已经完成识别的第一句话",
+            )
+            self.assertEqual(
+                recovered["segments"][0]["speaker"],
+                "本人",
+            )
+            self.assertEqual(
+                recovered["segments"][0]["source"],
+                "microphone",
             )
 
     def test_meeting_can_be_renamed_and_fully_deleted(self) -> None:

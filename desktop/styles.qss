@@ -98,6 +98,16 @@ QPushButton:disabled {
     background: #edf6ff;
     border-color: #8aa8c7;
 }
+#microphoneToggleButton {
+    color: #244f7c;
+    border-color: #b8c7d9;
+    background: #f7fbff;
+    font-weight: normal;
+}
+#microphoneToggleButton:hover {
+    background: #edf6ff;
+    border-color: #8aa8c7;
+}
 #subtitleOverlayCard {
     background: #ffffff;
     border: 1px solid #cfd3da;

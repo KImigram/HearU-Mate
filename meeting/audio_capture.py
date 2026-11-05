@@ -160,3 +160,54 @@ class WasapiLoopbackCapture(AudioCapture):
         self._recorder_context = None
         self._microphone = None
         logger.info("Audio capture stopped")
+
+
+class WasapiMicrophoneCapture(WasapiLoopbackCapture):
+    """Physical microphone capture kept separate from loopback audio."""
+
+    def _physical_devices(self):
+        soundcard = self._soundcard()
+        return [
+            item
+            for item in soundcard.all_microphones(include_loopback=False)
+            if not getattr(item, "isloopback", False)
+        ]
+
+    def list_devices(self) -> list[AudioDevice]:
+        soundcard = self._soundcard()
+        default = soundcard.default_microphone()
+        default_id = str(getattr(default, "id", ""))
+        default_name = str(getattr(default, "name", ""))
+        devices = []
+        for microphone in self._physical_devices():
+            name = str(getattr(microphone, "name", "Unknown Microphone"))
+            identifier = str(getattr(microphone, "id", name))
+            devices.append(AudioDevice(
+                id=identifier,
+                name=name,
+                is_default=(
+                    bool(default_id and identifier == default_id)
+                    or bool(default_name and name == default_name)
+                ),
+                is_loopback=False,
+            ))
+        return devices
+
+    def _select_device(self):
+        devices = self._physical_devices()
+        if not devices:
+            raise AudioCaptureError("没有找到可用的麦克风设备。")
+        if self.device_id:
+            for device in devices:
+                identifier = str(getattr(device, "id", ""))
+                name = str(getattr(device, "name", ""))
+                if self.device_id in {identifier, name}:
+                    return device
+            raise AudioCaptureError(f"找不到指定的麦克风：{self.device_id}")
+
+        default = self._soundcard().default_microphone()
+        default_id = str(getattr(default, "id", ""))
+        for device in devices:
+            if default_id and str(getattr(device, "id", "")) == default_id:
+                return device
+        return devices[0]
